@@ -1,0 +1,659 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <termios.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <iostream>
+
+#include <chrono>
+#include <ctime>
+
+//=========== Shorthands ===========
+using namespace std;
+
+typedef chrono::high_resolution_clock Clock;
+typedef chrono::milliseconds milliseconds;
+
+//=========== Defines ===========
+#define BOARD_WIDTH 10
+#define BOARD_HEIGHT 20
+
+#define SLEEP_TIME 500000
+
+//=========== Globals ===========
+char board[BOARD_HEIGHT][BOARD_WIDTH];
+char temp[BOARD_HEIGHT][BOARD_WIDTH];
+
+int pieceX;
+int pieceY;
+
+int ch;
+
+//=========== Classes ===========
+
+class Piece;
+class LinkedNode;
+
+
+class LinkedNode {
+private:
+    LinkedNode* n;
+    int* l;
+    
+public:
+    LinkedNode* next();
+    int*        line() { return l; };
+    
+    void setNext(LinkedNode* next) { n = next; };
+    void setLine(int * line)       { l = line; }
+    
+    
+} board2;
+
+//LinkedNode* LinkedNode::next() { return n; }
+//int*        line() ( return l; };
+    
+//void setNext(LinkedNode* next) { n = next; };
+//void setLine(int * line)       { l = line; }
+
+class Piece {
+    
+private:
+    int h;
+    int w;
+    int** s;
+    char i;
+    
+public:    
+    void init(int** s_in,int h_in,int w_in, char i_in) {
+	s = s_in;
+	w = w_in;
+	h = h_in;
+	i = i_in;
+    };
+    
+    void  setHeight(int h_in  ) { h = h_in;  };
+    void  setWidth (int w_in  ) { w = w_in;  };
+    void  setIcon  (char i_in ) { i = i_in;  };
+    void  setShape (int** s_in) { s = s_in;  };
+    
+    int   height() { return h;  };
+    int   width()  { return w;  };
+    int   icon()   { return i;  };
+    int** shape()  { return s;  }
+    
+} tetri_O, tetri_L, tetri_J, tetri_T, tetri_I, tetri_S, tetri_Z, current, following, hold;
+
+//=========== Functions ===========
+void resetTempBoard() {
+   for(int i = 0; i < BOARD_HEIGHT; i++) {
+	for(int j = 0; j < BOARD_WIDTH; j++) {
+	   
+		temp[i][j] = board[i][j];
+
+	}
+    }   
+    
+       
+}
+
+void drawBoard() {
+
+    for(int i = 0; i < BOARD_HEIGHT ; i++) {
+	printf("<!");
+
+	for(int j = 0; j < BOARD_WIDTH; j++) {
+	    printf("%c", temp[i][j]);
+	    
+	    printf(".");
+	}
+	
+	printf("!>");
+	printf("\n");
+    }
+    
+    printf("<!====================!>");
+    printf("\n");
+    printf("  \\/\\/\\/\\/\\/\\/\\/\\/\\/\\/  ");
+    printf("\n");
+    
+    printf("Next: \n");
+    
+    for(int i = 0; i < following.height(); i++) {
+	for(int j = 0; j < following.width(); j++) {
+	    if(following.shape()[i][j] == 1)
+		printf("%c", following.icon());
+	    else
+		printf(" ");
+	}
+	printf("\n");
+    }
+    
+    printf("\n");
+    
+    printf("Hold: \n");
+    
+    for(int i = 0; i < hold.height(); i++) {
+	for(int j = 0; j < hold.width(); j++) {
+	    if(hold.shape()[i][j] == 1)
+		printf("%c", hold.icon());
+	    else
+		printf(" ");
+	}
+	printf("\n");
+    }
+    
+    
+    
+}
+
+void draw() {
+    int i = system("clear");
+    int j = system("clear");
+    
+    drawBoard();
+    
+    resetTempBoard();
+    
+    
+}
+
+void newPiece() {
+    
+    current = following;
+    
+    /* initialize random seed: */
+    srand (time(NULL));
+
+    /* generate secret number between 1 and 10: */
+    int r = rand() % 7 + 1;
+
+    switch(r) {
+	
+	case 1:
+	    following = tetri_I;
+	    break;
+	case 2:
+	    following = tetri_L;
+	    break;
+	case 3:
+	    following = tetri_J;
+	    break;
+	case 4:
+	    following = tetri_O;
+	    break;
+	case 5:
+	    following = tetri_S;
+	    break;
+	case 6:
+	    following = tetri_Z;
+	    break;
+	case 7:
+	    following = tetri_T;
+	    break;  
+    }
+  
+    
+  
+    pieceY = 0 - current.height();
+    pieceX = BOARD_WIDTH / 2;
+        
+}
+
+void movePiece() {
+    
+    //does the piece not fit on the board
+    
+    //did the piece touch another piece
+    bool collision = false;
+    
+    for(int i = 0; i < current.height(); i++) {
+	for(int j = 0; j < current.width(); j++) {
+	    if(
+		pieceY + i >= 0 &&
+		pieceY + i < BOARD_HEIGHT &&
+		pieceX + j >= 0 && 
+		pieceX + j < BOARD_WIDTH
+	    ) {
+		if(current.shape()[i][j] == 1 && board[pieceY + i][pieceX + j] != ' ') {
+		    collision = true;
+		}
+	    } 	
+	}
+    }
+    
+    
+    
+    
+    if(collision) {
+	pieceY--;
+	
+	for(int i = 0; i < current.height(); i++) {
+	    for(int j = 0; j < current.width(); j++) {
+		if(
+		    pieceY + i >= 0 &&
+		    pieceY + i < BOARD_HEIGHT &&
+		    pieceX + j >= 0 && 
+		    pieceX + j < BOARD_WIDTH
+		) {
+		    if(current.shape()[i][j] == 1) {
+			temp[pieceY + i][pieceX + j] = current.icon();
+			board[pieceY + i][pieceX + j] = current.icon();
+		    }
+		} 
+		    
+		
+	    }
+	}
+	
+	newPiece();
+
+    //did the piece touch the bottom of the board
+    } else if(pieceY + current.height() > BOARD_HEIGHT) {
+	pieceY = BOARD_HEIGHT - current.height();
+	
+	for(int i = 0; i < current.height(); i++) {
+	    for(int j = 0; j < current.width(); j++) {
+		if(
+		    pieceY + i >= 0 &&
+		    pieceY + i < BOARD_HEIGHT &&
+		    pieceX + j >= 0 && 
+		    pieceX + j < BOARD_WIDTH
+		) {
+		    if(current.shape()[i][j] == 1) {
+			temp[pieceY + i][pieceX + j] = current.icon();
+			board[pieceY + i][pieceX + j] = current.icon();
+		    }
+		} 
+		    
+		
+	    }
+	}
+	
+	newPiece();
+    
+    //piece is just free falling
+    } else {
+   
+	for(int i = 0; i < current.height(); i++) {
+	    for(int j = 0; j < current.width(); j++) {
+		if(
+		    pieceY + i >= 0 &&
+		    pieceY + i < BOARD_HEIGHT &&
+		    pieceX + j >= 0 && 
+		    pieceX + j < BOARD_WIDTH 
+		) {
+		    if(current.shape()[i][j] == 1) {
+			temp[pieceY + i][pieceX + j] = current.icon();
+		    }
+		} 
+	    }
+	}
+    }
+}
+
+void init() {
+    for(int i = 0; i < BOARD_HEIGHT; i++) {
+	for(int j = 0; j < BOARD_WIDTH; j++) {
+	    board[i][j] = ' ';
+	    temp[i][j] = ' ';
+	}
+    }
+  
+      
+    int height;
+    int width;
+    char icon;
+    
+    
+    
+    
+    
+	height = 2;
+	width = 2;
+	
+	int** shape_O = ( int** ) malloc( height *sizeof( int* ));
+	for ( int i = 0; i < height; i++ ) {
+	    shape_O[i] = ( int* ) malloc( width * sizeof(int) );	
+	}
+	
+	shape_O[0][0] = 1; shape_O[0][1] = 1;
+	shape_O[1][0] = 1; shape_O[1][1] = 1;
+	
+	icon = 'O';
+	
+
+    tetri_O.init(shape_O, height, width, icon);
+    
+		
+	height = 4;
+	width = 1;
+	
+	int** shape_I = ( int** ) malloc( height *sizeof( int* ));
+	for ( int i = 0; i < height; i++ ) {
+	    shape_I[i] = ( int* ) malloc( width * sizeof(int) );	
+	}
+	
+	shape_I[0][0] = 1; 
+	shape_I[1][0] = 1; 
+	shape_I[2][0] = 1; 
+	shape_I[3][0] = 1; 
+	
+	icon = 'I';
+    
+    tetri_I.init(shape_I, height, width, icon);
+    
+    
+	height = 3;
+	width = 2;
+	
+	int** shape_L = ( int** ) malloc( height *sizeof( int* ));
+	for ( int i = 0; i < height; i++ ) {
+	    shape_L[i] = ( int* ) malloc( width * sizeof(int) );	
+	}
+	
+	shape_L[0][0] = 1; shape_L[0][1] = 0;
+	shape_L[1][0] = 1; shape_L[1][1] = 0;
+	shape_L[2][0] = 1; shape_L[2][1] = 1;
+	
+	icon = 'L';
+    
+    tetri_L.init(shape_L, height, width, icon);
+    
+    
+	height = 3;
+	width = 2;
+	
+	int** shape_J = ( int** ) malloc( height *sizeof( int* ));
+	for ( int i = 0; i < height; i++ ) {
+	    shape_J[i] = ( int* ) malloc( width * sizeof(int) );	
+	}
+	
+	shape_J[0][0] = 0; shape_J[0][1] = 1;
+	shape_J[1][0] = 0; shape_J[1][1] = 1;
+	shape_J[2][0] = 1; shape_J[2][1] = 1;
+	
+	icon = 'J';
+    
+    tetri_J.init(shape_J, height, width, icon);
+        
+    	height = 2;
+	width = 3;
+	
+	int** shape_T = ( int** ) malloc( height * sizeof( int* ));
+	for ( int i = 0; i < height; i++ ) {
+	    shape_T[i] = ( int* ) malloc( width * sizeof(int) );	
+	}
+	
+	shape_T[0][0] = 0; shape_T[0][1] = 1; shape_T[0][2] = 0; 
+	shape_T[1][0] = 1; shape_T[1][1] = 1; shape_T[1][2] = 1;	
+
+	icon = 'T';
+
+    tetri_T.init(shape_T, height, width, icon);
+      
+    
+    	height = 2;
+	width = 3;
+	
+	int** shape_Z = ( int** ) malloc( height *sizeof( int* ));
+	for ( int i = 0; i < height; i++ ) {
+	    shape_Z[i] = ( int* ) malloc( width * sizeof(int) );	
+	}
+	
+	shape_Z[0][0] = 1; shape_Z[0][1] = 1; shape_Z[0][2] = 0;
+	shape_Z[1][0] = 0; shape_Z[1][1] = 1; shape_Z[1][2] = 1;
+	
+	icon = 'Z';
+    
+    tetri_Z.init(shape_Z, height, width, icon);
+    
+    
+    	height = 2;
+	width = 3;
+	
+	int** shape_S = ( int** ) malloc( height *sizeof( int* ));
+	for ( int i = 0; i < height; i++ ) {
+	    shape_S[i] = ( int* ) malloc( width * sizeof(int) );	
+	}
+	
+	shape_S[0][0] = 0; shape_S[0][1] = 1; shape_S[0][2] = 1;
+	shape_S[1][0] = 1; shape_S[1][1] = 1; shape_S[1][2] = 0;
+	
+	icon = 'S';
+    
+    tetri_S.init(shape_S, height, width, icon);
+    
+    
+    
+    
+    
+    /* initialize random seed: */
+    srand (time(NULL));
+
+    /* generate secret number between 1 and 10: */
+    int r = rand() % 7 + 1;
+
+    switch(r) {
+	
+	case 1:
+	    following = tetri_I;
+	    break;
+	case 2:
+	    following = tetri_L;
+	    break;
+	case 3:
+	    following = tetri_J;
+	    break;
+	case 4:
+	    following = tetri_O;
+	    break;
+	case 5:
+	    following = tetri_S;
+	    break;
+	case 6:
+	    following = tetri_Z;
+	    break;
+	case 7:
+	    following = tetri_T;
+	    break;  
+    }
+   
+    
+    switch(r + 10) {
+	
+	case 1:
+	    current = tetri_I;
+	    break;
+	case 2:
+	    current = tetri_L;
+	    break;
+	case 3:
+	    current = tetri_J;
+	    break;
+	case 4:
+	    current = tetri_O;
+	    break;
+	case 5:
+	    current = tetri_S;
+	    break;
+	case 6:
+	    current = tetri_Z;
+	    break;
+	case 7:
+	    current = tetri_T;
+	    break;  
+    }
+    
+    
+    
+}
+
+int kbhit(void) {
+  struct termios oldt, newt;
+  
+  int oldf;
+
+  tcgetattr(STDIN_FILENO, &oldt);
+  newt = oldt;
+  newt.c_lflag &= ~(ICANON | ECHO);
+  tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+  oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
+  fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
+
+  ch = getchar();
+  
+  
+
+  tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+  fcntl(STDIN_FILENO, F_SETFL, oldf);
+
+  if(ch != EOF)
+  {
+    //ungetc(ch, stdin);
+    return 1;
+  }
+
+  return 0;
+} 
+
+
+void rotate() {
+    
+    int w = current.width();
+    int h = current.height();
+    
+    
+    int** shape_r = ( int** ) malloc( w *sizeof( int* ));
+    for ( int i = 0; i < w; i++ ) {
+	shape_r[i] = ( int* ) malloc( h * sizeof(int) );	
+    }
+    
+    for(int i = 0; i < h; i++) {
+	for(int j = 0; j < w; j++) {
+	    shape_r[j][i] = current.shape()[i][j];
+	}
+    }
+    
+    
+    //free(current.shape());
+    
+    current.setShape(shape_r);
+    current.setHeight(w);
+    current.setWidth(h);
+    
+}
+
+void checkInput() {
+    
+      if(kbhit()){ //kbhit is 1 if a key has been pressed
+		//printf("pressed key was: %c\n", ch);
+		
+		switch (ch) {
+		    
+		    case 'd': 
+			
+			
+			for(int i = 0; i < current.height(); i++) {
+			    for(int j = 0; j < current.width(); j++) {
+				if(current.shape()[i][j] == 1 && board[pieceY + i][pieceX + 1 + j] != ' ') {
+				    //printf("DENIED\n");
+				    return;
+				}    
+			    }
+			}
+			
+			
+			pieceX++;
+			
+			if(pieceX + current.width() >= BOARD_WIDTH) {
+			    pieceX = BOARD_WIDTH - current.width();
+			}
+			
+			
+			break;
+		    case 'a': 
+			
+			
+			for(int i = 0; i < current.height(); i++) {
+			    for(int j = 0; j < current.width(); j++) {
+				if(current.shape()[i][j] == 1 && board[pieceY + i][pieceX - 1 + j] != ' ') {
+				    //printf("DENIED\n");
+				    return;
+				}    
+			    }
+			}
+			
+			
+			
+			pieceX--;
+			
+			if(pieceX < 0) {
+			    pieceX = 0;
+			} 
+			
+			break;
+		    case 's': 
+			pieceY++;
+			
+			if(pieceY >= BOARD_HEIGHT) {
+			    pieceY = BOARD_HEIGHT;
+			}
+			
+			break;
+		    case 'w': 
+			rotate();
+			break;
+		    case ' ': 
+			//drop
+			break;
+		    case 'z': 
+			//store
+			break;
+		    
+		}
+		
+		movePiece();
+		draw();
+		    
+		    
+		
+		
+		ch = 0;
+	}
+    
+}
+
+//=========== Main ===========
+int main() {
+      
+    init();
+
+    newPiece();
+    
+    while(1) {
+	
+	movePiece();
+	draw();
+	
+	Clock::time_point start = Clock::now();
+ 	int elapsed = 0;
+	
+	while(elapsed < 1000) {
+	  
+	    checkInput();
+	    
+	    Clock::time_point now = Clock::now();
+	    milliseconds ms = chrono::duration_cast<milliseconds>(now - start);
+	    elapsed = ms.count();
+	    
+	}	
+	
+	pieceY++;
+	
+    }
+    
+    
+    return 0;   
+}
