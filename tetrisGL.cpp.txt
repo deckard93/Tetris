@@ -37,6 +37,7 @@ void toggleFullscreen();
 void dropPiece();
 void calculate_Ghost();
 void updateBoard();
+void color_Me(char c);
 
 
 //=========== Shorthands ===========
@@ -53,11 +54,19 @@ typedef chrono::milliseconds milliseconds;
 #define SLEEP_TIME 500000 
 
 #define WORLD_X 1920
-#define WORLD_Y 1200
+#define WORLD_Y 1080
 
 #define WINDOW_X 1280
-#define WINDOW_Y 800
+#define WINDOW_Y 720
 
+#define ASCII 100
+#define VECTOR 200
+#define THREE_D 300 
+
+
+//================ DEBUG ================
+int Y = 0;
+int X = 0;
 
 //=========== Globals ===========
 char temp[BOARD_HEIGHT][BOARD_WIDTH];
@@ -72,30 +81,25 @@ int level;
 int pieceX;
 int pieceY;
 
-int Y = 0;
-int X = 0;
-
+int graphics = VECTOR;
 
 bool swapped;
 bool holdInit;
 bool gameOver;
 
-bool fullscreen = false;
+bool FPS;
 
-float square = 20.0f;
-float triangle = 20.0f;
+int frames;
+int fps;
+int FPSdisplay;
+
+bool fullscreen;
 
 long int elapsed;
 
-bool FPS = true;
+int blockSize;
 
-int frames = 0;
-int fps = 0;
-int FPSdisplay = 1000;
-
-int blockSize = WORLD_X / 5 / 10;
-
-int aux_Box_S = 5 * blockSize;
+int aux_Box_S;
 
 Clock::time_point start;
 Clock::time_point lastMove;
@@ -168,7 +172,7 @@ void draw_stroke_text(const char* text)
 	}	
 }
 
-void displayFPS() 
+void displayFPS() 							
 {
 	glColor3f(1.0f, 1.0f, 0.0f); // set RGB values of colour to draw
     
@@ -368,12 +372,7 @@ void draw_Next()
 	}
 	d_Y -= blockSize;
 	d_X = WORLD_X / 5 + (-1) * blockSize;
-	
     }
-    
-    
-    
-    
 }
 
 void draw_Hold() 
@@ -419,19 +418,10 @@ void draw_Hold()
     }
 }
 
-void draw_Heads_Up() 
-{    
-    draw_Score();
-    draw_Level();
-    
-    draw_Next();
-    draw_Hold();
-}
-
 void draw_Board() 
 {
     int d_X = WORLD_X / 5 * 2;
-    int d_Y = 0 + 20 * blockSize - 1 ;
+    int d_Y = 0 + 22 * blockSize - 1 ;
     
     draw_Border(d_X - blockSize/2 - 1, d_Y + blockSize/2 + 1, 10 * blockSize + 2, (- 20 * blockSize) - 3);
     
@@ -467,6 +457,254 @@ void draw_Board()
 }
 
 
+void draw_ASCII_Next() 
+{
+    glColor3f(1.0f, 1.0f, 1.0f); // set RGB values of colour to draw
+    
+    int d_X = WORLD_X / 5;
+    int d_Y = 0 + 20 * blockSize - 1 ;
+    
+     glPushMatrix();
+	glTranslatef(d_X - blockSize/2 - aux_Box_S/2, d_Y + 50, 0.0f);
+	glScalef(0.3f, 0.3f, 1.0f);
+	
+	draw_stroke_text("Next: "); 
+	
+    glPopMatrix();
+        
+    
+    d_X = WORLD_X / 5 + (-1) * blockSize;
+    d_Y = 0 + 21 * blockSize - 1 - (5 - following.height()) * blockSize;
+    
+    
+    for(int j = 0; j < following.width(); j++) {
+	  
+	glPushMatrix();
+
+	    glTranslatef(d_X + blockSize * j, d_Y, 0.0f);
+	    glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
+	    draw_stroke_text("-") ;
+    
+	glPopMatrix(); // done with stack
+    }
+    
+     d_Y -= blockSize;
+     d_X = WORLD_X / 5 + (-1) * blockSize;
+    
+    for(int i = 0; i < following.height(); i++) {
+	
+	//char buffer[4];
+	//buffer[0] = '[';
+	//buffer[1] = ']';
+	//buffer[2] = '\0';
+	
+	//draw_stroke_text(buffer) ;
+	
+	glPushMatrix();
+	
+	glTranslatef(d_X, d_Y - i * blockSize, 0.0f);
+	
+	
+	
+	for(int j = 0; j < following.width(); j++) {
+	    if(following.shape()[i][j] == 1) {
+		glPushMatrix();
+		    glTranslatef(0 + j * blockSize, 0, 0.0f);
+		    glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
+
+			color_Me(following.icon());
+
+			draw_stroke_text("[]") ;
+
+		glPopMatrix(); // done with stack
+	    }
+	}
+	glPopMatrix();
+    }
+    
+    
+    d_Y -= blockSize * (following.width() + 1);
+    d_X = WORLD_X / 5 + (-1) * blockSize;
+    
+    for(int j = 0; j < following.width(); j++) {
+	    
+	    glPushMatrix();
+		    glTranslatef(d_X, d_Y, 0.0f);
+		    glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
+
+		    draw_stroke_text("-") ;
+
+			    
+	    glPopMatrix(); // done with stack
+	    
+	    d_X += blockSize;
+	}
+    
+     
+    
+}
+
+void draw_ASCII_Hold() 
+{
+    glColor3f(1.0f, 1.0f, 1.0f); // set RGB values of colour to draw   
+    
+    int d_X = WORLD_X / 5 * 4;
+    int d_Y = 0 + 20 * blockSize - 1 ;
+    
+    glPushMatrix();
+	glTranslatef(d_X - blockSize/2 - aux_Box_S/2, d_Y + 50, 0.0f);
+	glScalef(0.3f, 0.3f, 1.0f);
+	
+	draw_stroke_text("Hold: "); 
+	
+    glPopMatrix();
+    
+    
+    
+    
+    
+    
+    d_X = WORLD_X / 5 * 4 + (-1) * blockSize;
+    d_Y = 0 + 20 * blockSize - 1 - (5 - hold.height()) * blockSize;
+    
+    for(int i = 0; i < hold.height(); i++) {
+	for(int j = 0; j < hold.width(); j++) {
+	    if(hold.shape()[i][j] == 1) {
+		glPushMatrix();
+		
+		    glTranslatef(d_X, d_Y, 0.0f);
+		    glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
+		
+		    color_Me(hold.icon());
+		    draw_stroke_text("[]") ;
+			
+		glPopMatrix(); // done with stack
+	    }
+	    d_X += blockSize;
+	}
+	d_Y -= blockSize;
+	d_X = WORLD_X / 5 * 4 + (-1) * blockSize;
+    }
+}
+
+void draw_ASCII_Board() {
+    
+    int d_X = WORLD_X / 5 * 2 - blockSize;
+    int d_Y = 0 + 22 * blockSize - 1 ;
+   
+    char buffer[4];
+   
+    for(int i = 0; i < BOARD_HEIGHT + 1 ; i++) {
+	
+	glPushMatrix();
+	    glTranslatef(d_X, d_Y - i * blockSize, 0.0f);
+	    
+	    glPushMatrix();    
+		glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
+		
+		draw_stroke_text("<!") ;
+	    glPopMatrix();
+			    
+	    for(int j = 0; j < BOARD_WIDTH; j++) {
+		
+		glTranslatef(blockSize, 0, 0.0f);
+		
+		glPushMatrix();
+		    
+		    glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
+		    
+		    if(i >= BOARD_HEIGHT) {
+			buffer[0] = '=';
+			buffer[1] = '\0';
+		    } else {
+			if(temp[i][j] == ' ') {
+
+			    buffer[0] = ' ';
+			    buffer[1] = '.';
+			    buffer[2] = '\0';
+			} else {
+			    
+			    buffer[0] = '[';
+			    buffer[1] = ']';
+			    buffer[2] = '.';
+			    buffer[3] = '\0';
+			    //buffer[0] = temp[i][j];
+			    
+			    color_Me(temp[i][j]);
+			    
+			    if(temp[i][j] == 'G') {
+				buffer[0] = '#';
+				buffer[1] = '.';
+				buffer[2] = '\0';
+			    }   
+			}
+		    }
+		    
+		    draw_stroke_text(buffer) ;
+		    
+		    glColor3f(1.0f, 1.0f, 1.0f);
+			
+		    glPopMatrix();
+		
+	    }
+	    glPushMatrix();
+
+		glTranslatef( blockSize, 0, 0.0f);
+		glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
+			    
+		draw_stroke_text("!>") ;
+				    
+	    glPopMatrix();
+	
+	glPopMatrix();
+    }
+   
+    glPushMatrix();
+	
+	glTranslatef(d_X, d_Y - 21 * blockSize, 0.0f);
+	
+	for(int j = 0; j < BOARD_WIDTH; j++) {
+	    
+	    glPushMatrix();  
+		glTranslatef(0 + (j + 1) * blockSize, 0, 0.0f);
+		glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
+		    
+		draw_stroke_text("\\/") ;
+		    
+	    glPopMatrix(); 
+	}
+
+    glPopMatrix();
+	    
+}
+
+void color_Me(char c) {
+    
+    switch(c) {
+	case 'T':
+	    glColor3f(1.0f, 0.0f, 1.0f); // purple
+	    break;
+	case 'J':
+	    glColor3f(0.0f, 0.0f, 1.0f); // blue
+	    break;
+	case 'I':
+	    glColor3f(0.0f, 1.0f, 1.0f); // light-blue
+	    break;
+	case 'Z':
+	    glColor3f(1.0f, 0.0f, 0.0f); // red
+	    break;
+	case 'S':
+	    glColor3f(0.0f, 1.0f, 0.0f); // green
+	    break;
+	case 'O':
+	    glColor3f(1.0f, 1.0f, 0.0f); // yellow
+	    break;
+	case 'L':
+	    glColor3f(1.0f, 0.5f, 0.0f); // orange
+	    break;    
+    }
+}
+
 //===================== Callbacks =====================
 void display() 
 {
@@ -476,10 +714,28 @@ void display()
     
     if (FPS) displayFPS();
     
-    draw_Heads_Up();
-   
-    draw_Board();
+    switch(graphics) {
+	case VECTOR:
+	    draw_Score();
+	    draw_Level();
     
+	    draw_Next();
+	    draw_Hold();
+	    
+	    draw_Board();
+	    break;
+	case ASCII:
+	    draw_Score();
+	    draw_Level();
+	    
+	    draw_ASCII_Next();
+	    draw_ASCII_Hold();
+	    
+	    draw_ASCII_Board();
+	    break;
+	case THREE_D:
+	    break;
+    }
     
     glutSwapBuffers(); 
 }
@@ -530,20 +786,28 @@ void idle()
 //===================== Setup =====================
 void initGL() 
 {
-	// select viewing transformation matrix to modify
-	glMatrixMode(GL_PROJECTION); 
+    fullscreen = false;
+    
+    FPS = true;
+    
+    frames = 0;
+    fps = 0;
+    FPSdisplay = 1000;
+    
+    // select viewing transformation matrix to modify
+    glMatrixMode(GL_PROJECTION); 
 
-	// set identity on matrix
-	glLoadIdentity();
+    // set identity on matrix
+    glLoadIdentity();
 
-	// specify bottom-left and top-right corners
-	// of window in world coordinates
-	// takes LEFT, RIGHT, BOTTOM, TOP
-	gluOrtho2D(0, WORLD_X, 0, WORLD_Y);
+    // specify bottom-left and top-right corners
+    // of window in world coordinates
+    // takes LEFT, RIGHT, BOTTOM, TOP
+    gluOrtho2D(0, WORLD_X, 0, WORLD_Y);
 
-	// set background colour and transparency
-	// takes RGBA values
-	glClearColor(0.0f, 0.0f, 0.0f, 0.0f); // black	
+    // set background colour and transparency
+    // takes RGBA values
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f); // black	
 }
 
 int** allocateArray(int height, int width) 
@@ -558,6 +822,10 @@ int** allocateArray(int height, int width)
 
 void gameInit() 
 {
+    blockSize = WORLD_X / 5 / 10;
+
+    aux_Box_S = 5 * blockSize;
+    
     
     level = 0;
     
@@ -764,6 +1032,16 @@ void restart()
     swapped = false;
 }
 
+void freeArray(int** p, int height, int width) 
+{
+   
+    for ( int i = 0; i < height; i++ ) {
+	free(p[i]);	
+    }
+	
+    free(p);
+}
+
 void cleanup() 
 {
     
@@ -777,9 +1055,22 @@ void cleanup()
 	current = next;
     }
     
-    //tetri_I.shape();
+    freeArray(tetri_O.shape(), tetri_O.height(), tetri_O.width());
     
-    //board.delete();
+    freeArray(tetri_I.shape(), tetri_I.height(), tetri_I.width());
+    
+    freeArray(tetri_L.shape(), tetri_L.height(), tetri_L.width());
+    
+    freeArray(tetri_J.shape(), tetri_J.height(), tetri_J.width());
+    
+    freeArray(tetri_T.shape(), tetri_T.height(), tetri_T.width());
+    
+    freeArray(tetri_Z.shape(), tetri_Z.height(), tetri_Z.width());
+    
+    freeArray(tetri_S.shape(), tetri_S.height(), tetri_S.width());
+    
+    
+    
     
     
 }
@@ -811,7 +1102,8 @@ void movePiece()
     resetTempBoard();
     
     if(collision()) {	//place the piece and generate a new one
-
+	pieceY--;
+	
 	if(pieceY < 0 ){
 	    gameOver = true;
 	    printf("Game Over\n");
@@ -829,7 +1121,6 @@ void movePiece()
     
 	updateTemp();
     }
-    
     
     calculate_Ghost();
 }
@@ -901,11 +1192,49 @@ void rotateRight()
 
     
     
-    //free(current.shape());
+    //freeArray(current.shape(), h, w);
     
     current.setShape(shape_r);
     current.setHeight(w);
     current.setWidth(h);
+    
+   
+   if(collision()) {
+	
+	
+	
+	for(int y = 0; y > -3; y--) {
+	    for(int x = -2; x < 3; x++) {
+		pieceY += y;
+		pieceX += x;
+		
+		if(!collision()) {
+		    return;
+		} 
+		
+		pieceY -= y;
+		pieceX -= x;
+	    }
+	}	    	
+	
+	for(int y = 1; y < 3; y++) {
+	    for(int x = -2; x < 3; x++) {
+		pieceY += y;
+		pieceX += x;
+		
+		if(!collision()) {
+		    return;
+		} 
+	    
+		pieceY -= y;
+		pieceX -= x;
+	    }
+	}
+    }
+    
+    while(collision()) {
+	pieceY--;   
+   }
     
 }
 
@@ -937,11 +1266,33 @@ void rotateLeft()
     }
     
     
-    //free(current.shape());
+    //freeArray(current.shape(), h, w);
     
     current.setShape(shape_r);
     current.setHeight(w);
     current.setWidth(h);
+    
+    
+   if(collision()) {
+	
+	for(int x = -2; x < 3; x++) {
+	    for(int y = -2; y < 3; y++) {
+		pieceY += y;
+		pieceX += x;
+		
+		if(!collision()) {
+		    return;
+		} 
+		
+		pieceY -= y;
+		pieceX -= x;
+	    }
+	}	    	
+    }
+   
+   while(collision()) {
+	pieceY--;   
+   }
     
 }
 
@@ -1102,20 +1453,22 @@ bool collision()
     
     for(int i = 0; i < current.height() + diff; i++) {
 	for(int j = 0; j < current.width(); j++) {
-	    if(
-		pieceY + i >= 0 &&
-		pieceX + j >= 0 && 
-		pieceX + j < BOARD_WIDTH
-	    ) {
-		if(current.shape()[i][j] == 1 && node->line()[pieceX + j] != ' ') {
-		    pieceY--;
+	    
+	    if(current.shape()[i][j] == 1) {
+		
+		if(pieceY + i >= BOARD_HEIGHT) {
 		    return true;
 		}
-	    }
 		
-	    if(pieceY + i >= BOARD_HEIGHT && current.shape()[i][j] == 1) {
-		    pieceY--;
+		if (pieceX + j < 0 || pieceX + j >= BOARD_WIDTH) {
 		    return true;
+		}
+
+		
+		if(pieceY + i >= 0 && node->line()[pieceX + j] != ' ') {
+		    printf("FLAG\n");
+		    return true;
+		}
 	    }
 	}
 	
@@ -1152,11 +1505,15 @@ void updateBoard()
 	bool complete = true;
 	    
 	for(int k = 0; k < BOARD_WIDTH; k++) {
+	    printf("%c", node->line()[k]);
 	    if(node->line()[k] == 32) {
+		
 		complete = false;
 		break;
 	    } 
+	    
 	}
+	printf("\n");
 	
 	if(complete) {
 	    
@@ -1211,9 +1568,12 @@ void updateBoard()
     if(linesCleared > 10) {
 	linesCleared = 0;
 	level++;
-    }
-
-    
+	
+	if(level > 20) {
+	    printf("You Win!\n");
+	    restart();		
+	}
+    }	    
 }
 
 void dropPiece() 
@@ -1229,7 +1589,7 @@ void dropPiece()
 	movePiece();    
     }
     
-    pieceY++;
+   
     
     resetTempBoard();   
    
@@ -1304,34 +1664,46 @@ void keyboard(unsigned char key, int x, int y)
 		case 27: //ESC
 		    quitGame();
 		    break;
-	    
 		case 'q': 
 		    quitGame();
 		    break;
+		case 'r': 
+		    restart();
+		    break;
 		
+		    
 		case 'f': 
 		    toggleFullscreen();
 		    break;
+		    
 		
 		case 'z': 
 		    holdPiece();
 		    break;
-		
 		case 'x': 
 		    rotateRight();
 		    break;
-		
 		case 'c': 
 		    rotateLeft();
 		    break;
 		    
-		case 'r': 
-		    restart();
-		    break;
+		
 		    
 		case ' ': 
 		    dropPiece();
 		    break;
+		    
+		    
+		case 'i': 
+		    graphics = ASCII;
+		    break;
+		case 'o': 
+		    graphics = VECTOR;
+		    break;    
+		case 'p': 
+		    graphics = THREE_D;
+		    break;
+		    
 	}
 
 	movePiece();
