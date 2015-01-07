@@ -1,13 +1,33 @@
+//=========== Includes ===========
 #include <stdio.h>
+#include <string.h>
+#include <iostream>
+#include <iomanip>
+#include <sstream> 
+
 #include <stdlib.h>
 #include <termios.h>
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <iostream>
-
 #include <chrono>
 #include <ctime>
+
+#include <GL/glut.h>
+
+//=========== Declarations ===========
+class Piece;
+class LinkedNode;
+
+unsigned int make_bitmap_text();
+void draw_bitmap_text(const char* text);
+void draw_stroke_text(const char* text);
+void tetris();
+void newPiece();
+void movePiece();
+void resetTempBoard();
+void draw_Ghost_Block();
+
 
 //=========== Shorthands ===========
 using namespace std;
@@ -15,27 +35,62 @@ using namespace std;
 typedef chrono::high_resolution_clock Clock;
 typedef chrono::milliseconds milliseconds;
 
+
 //=========== Defines ===========
 #define BOARD_WIDTH 10
 #define BOARD_HEIGHT 20
 
-#define SLEEP_TIME 500000
+#define SLEEP_TIME 500000 
+
+#define WORLD_X 1920
+#define WORLD_Y 1200
+
+#define WINDOW_X 1280
+#define WINDOW_Y 800
+
 
 //=========== Globals ===========
 char temp[BOARD_HEIGHT][BOARD_WIDTH];
 
+int linesCleared;
+
+int speed[21];
+
+int score;
+int level;
+
 int pieceX;
 int pieceY;
 
-int ch;
+
+bool swapped;
+bool holdInit;
+bool gameOver;
+
+bool fullscreen = false;
+
+float square = 20.0f;
+float triangle = 20.0f;
+
+long int elapsed;
+
+bool FPS = true;
+
+int frames = 0;
+int fps = 0;
+int FPSdisplay = 1000;
+
+int blockSize = WORLD_X / 5 / 10;
+
+Clock::time_point start;
+Clock::time_point lastMove;
+
+
+LinkedNode* board;
 
 //=========== Classes ===========
-
-class Piece;
-class LinkedNode;
-
-
-class LinkedNode {
+class LinkedNode 
+{
 private:
     LinkedNode* n;
     int* l;
@@ -48,10 +103,10 @@ public:
     void setLine(int * line)       { l = line; }
     
     
-} board;
+};
 
-
-class Piece {
+class Piece 
+{
     
 private:
     int h;
@@ -79,260 +134,418 @@ public:
     
 } tetri_O, tetri_L, tetri_J, tetri_T, tetri_I, tetri_S, tetri_Z, current, following, hold;
 
-//=========== Functions ===========
-void resetTempBoard() {
-    
-   LinkedNode* node = &board;
-    
-   for(int i = 0; i < BOARD_HEIGHT; i++) {
-	for(int j = 0; j < BOARD_WIDTH; j++) {
-	   
-		temp[i][j] = node->line()[j];
 
-	}
+//=============== Drawing Functions ===============
+void draw_stroke_text(const char* text) 
+{
+	size_t len = strlen(text);
 	
-	node = node->next();
-    }   
-    
-       
+	int total_width = 0;
+	
+	for (size_t i=0;i<len;i++) {
+		total_width += glutStrokeWidth(GLUT_STROKE_ROMAN, text[i]);
+		glutStrokeCharacter(GLUT_STROKE_ROMAN, text[i]);
+	}	
 }
 
-void drawBoard() {
+void displayFPS() 
+{
+	glColor3f(1.0f, 1.0f, 0.0f); // set RGB values of colour to draw
+    
+	glPushMatrix(); //FPS
+		glScalef(0.3f, 0.3f, 1.0f); // this will work
+		glTranslatef(10, 10, 0.0f); // this will work
+		
+		
+		string Result;          // string which will contain the result
+		ostringstream convert;   // stream used for the conversion
+		convert << fps;      // insert the textual representation of 'Number' in the characters in the stream
+		Result = convert.str(); // set 'Result' to the contents of the stream
+		
+		draw_stroke_text(Result.c_str());
+	glPopMatrix();	
+	
+}
 
-    for(int i = 0; i < BOARD_HEIGHT ; i++) {
-	printf("<!");
+void draw_square(char c) 
+{	
+    
+	glColor3f(0.0f, 0.0f, 0.0f); // set RGB values of colour to draw
+    
+	//printf('%c', c);
+	
+	switch((char) c) {
+	    case 'T':
+		glColor3f(1.0f, 0.0f, 1.0f); // purple
+		break;
+	    case 'J':
+		glColor3f(0.0f, 0.0f, 1.0f); // blue
+		break;
+	    case 'I':
+		glColor3f(0.0f, 1.0f, 1.0f); // light-blue
+		break;
+	    case 'Z':
+		glColor3f(1.0f, 0.0f, 0.0f); // red
+		break;
+	    case 'S':
+		glColor3f(0.0f, 1.0f, 0.0f); // green
+		break;
+	    case 'O':
+		glColor3f(1.0f, 1.0f, 0.0f); // yellow
+		break;
+	    case 'L':
+		glColor3f(1.0f, 0.5f, 0.0f); // orange
+		break;
+		
+	    case 'G':
+		draw_Ghost_Block();
+		return;
+	
 
-	for(int j = 0; j < BOARD_WIDTH; j++) {
-	    printf("%c", temp[i][j]);
-	    
-	    printf(".");
 	}
 	
-	printf("!>");
-	printf("\n");
-    }
+	static float vertex[4][2] =
+		{
+			{-1, 1},
+			{1, 1},
+			{1, -1},
+			{-1, -1}
+		};
+	
+	glBegin(GL_QUADS); 
+		for (size_t i=0;i<4;i++) {
+			
+			glVertex2fv(vertex[i]);
+		}
+	glEnd();
+	
+	
+	glColor3f(0.0f, 0.0f, 0.0f); // set RGB values of colour to draw
+		
+	glBegin(GL_LINE_LOOP); 
+		for (size_t i=0;i<4;i++) {
+			
+			glVertex2fv(vertex[i]);
+		}
+	glEnd();
+}
+
+void draw_Border(int d_X, int d_Y, int size_X, int size_Y) {
     
-    printf("<!====================!>");
-    printf("\n");
-    printf("  \\/\\/\\/\\/\\/\\/\\/\\/\\/\\/  ");
-    printf("\n");
+    glColor3f(1.0f, 1.0f, 1.0f); // set RGB values of colour to draw
     
-    printf("Next: \n");
+     glBegin(GL_LINE_LOOP); 
+	glVertex2i(d_X , d_Y );
+	glVertex2i(d_X + size_X, d_Y);
+	glVertex2i(d_X + size_X, d_Y + size_Y);
+	glVertex2i(d_X , d_Y + size_Y);
+    glEnd();   
+    
+}
+
+void draw_Ghost_Block() 
+{	
+    
+	glColor3f(1.0f, 1.0f, 1.0f); // set RGB values of colour to draw
+    
+	//printf('%c', c);
+	
+	
+	static float vertex[4][2] =
+		{
+			{-1, 1},
+			{1, 1},
+			{1, -1},
+			{-1, -1}
+		};
+	
+	glBegin(GL_LINE_LOOP); 
+		for (size_t i=0;i<4;i++) {
+			
+			glVertex2fv(vertex[i]);
+		}
+	glEnd();
+}
+
+void draw_Score() 
+{
+    glColor3f(1.0f, 1.0f, 0.0f); // set RGB values of colour to draw
+    
+    glPushMatrix(); //FPS
+	glScalef(0.3f, 0.3f, 1.0f); // this will work
+	glTranslatef(10, WINDOW_X * 2 - 10, 0.0f); // this will work
+	
+	string Result;          // string which will contain the result
+	ostringstream convert;   // stream used for the conversion
+	convert << score;      // insert the textual representation of 'Number' in the characters in the stream
+	Result = convert.str(); // set 'Result' to the contents of the stream
+	
+	draw_stroke_text("Score: "); 
+	draw_stroke_text(Result.c_str());
+    glPopMatrix();	
+}
+
+void draw_Level() 
+{
+    glColor3f(1.0f, 1.0f, 0.0f); // set RGB values of colour to draw
+    
+    glPushMatrix(); //FPS
+	glScalef(0.3f, 0.3f, 1.0f); // this will work
+	glTranslatef(10, WINDOW_X * 2 - 200, 0.0f); // this will work
+	
+	string Result;          // string which will contain the result
+	ostringstream convert;   // stream used for the conversion
+	convert << level;      // insert the textual representation of 'Number' in the characters in the stream
+	Result = convert.str(); // set 'Result' to the contents of the stream
+	
+	draw_stroke_text("Level: "); 
+	draw_stroke_text(Result.c_str());
+    glPopMatrix();
+}
+
+void draw_Next() 
+{
+    
+    int d_X = WORLD_X / 5;
+    int d_Y = 0 + 20 * blockSize - 1 ;
+    
+     glPushMatrix();
+	glScalef(0.3f, 0.3f, 1.0f);
+	glTranslatef(d_X, d_Y, 0.0f);
+	
+	draw_stroke_text("Next: "); 
+	
+    glPopMatrix();
+    
     
     for(int i = 0; i < following.height(); i++) {
 	for(int j = 0; j < following.width(); j++) {
-	    if(following.shape()[i][j] == 1)
-		printf("%c", following.icon());
-	    else
-		printf(" ");
+	    if(following.shape()[i][j] == 1) {
+		glPushMatrix();
+
+		    // translate it to where we want it
+		    glTranslatef(d_X, d_Y, 0.0f);
+		    
+		    glScalef(blockSize/2, blockSize/2, blockSize/2);
+
+		    
+		    draw_square(following.icon());
+
+			
+		glPopMatrix(); // done with stack
+	    }
+	    d_X += blockSize;
 	}
-	printf("\n");
+	d_Y -= blockSize;
+	d_X = WORLD_X / 5;
+	
     }
     
-    printf("\n");
     
-    printf("Hold: \n");
+    
+    
+}
+
+void draw_Hold() 
+{
+       
+    int d_X = WORLD_X / 5 * 4;
+    int d_Y = 0 + 20 * blockSize - 1 ;
     
     for(int i = 0; i < hold.height(); i++) {
 	for(int j = 0; j < hold.width(); j++) {
-	    if(hold.shape()[i][j] == 1)
-		printf("%c", hold.icon());
-	    else
-		printf(" ");
-	}
-	printf("\n");
-    }
-    
-    
-    
-}
+	    if(hold.shape()[i][j] == 1) {
+		glPushMatrix();
 
-void draw() {
-    int i = system("clear");
-    int j = system("clear");
-    
-    drawBoard();
-    
-    resetTempBoard();
-    
-    
-}
-
-void newPiece() {
-    
-    current = following;
-    
-    /* initialize random seed: */
-    srand (time(NULL));
-
-    /* generate secret number between 1 and 10: */
-    int r = rand() % 7 + 1;
-
-    switch(r) {
-	
-	case 1:
-	    following = tetri_I;
-	    break;
-	case 2:
-	    following = tetri_L;
-	    break;
-	case 3:
-	    following = tetri_J;
-	    break;
-	case 4:
-	    following = tetri_O;
-	    break;
-	case 5:
-	    following = tetri_S;
-	    break;
-	case 6:
-	    following = tetri_Z;
-	    break;
-	case 7:
-	    following = tetri_T;
-	    break;  
-    }
-  
-    
-  
-    pieceY = 0 - current.height();
-    pieceX = BOARD_WIDTH / 2;
-        
-}
-
-void writeToBoard() {
-    
-   printf("baaaaah\n");
-    
-   LinkedNode* node = &board;
-    
-   for(int i = 0; i < pieceY; i++) {	
-	node = node->next();
-    }   
-    
-    
-    for(int i = 0; i < current.height(); i++) {
-	for(int j = 0; j < current.width(); j++) {
-	    if(current.shape()[i][j] == 1) {
-		node->line()[pieceX + j] = current.icon();
-		printf("Wrote stuff\n");
-	    }
-		 
-	}
-	node = node->next();
-    }
-    
-    printf("aaaaaahhh\n");
-}
-
-
-void movePiece() {
-    
-    //does the piece not fit on the board
-    
-    //did the piece touch another piece
-    
-    
-    
-    if(pieceY + current.height() > BOARD_HEIGHT) {
-	pieceY = BOARD_HEIGHT - current.height();
-	
-	writeToBoard();
-	
-	for(int i = 0; i < current.height(); i++) {
-	    for(int j = 0; j < current.width(); j++) {
-		if(
-		    pieceY + i >= 0 &&
-		    pieceY + i < BOARD_HEIGHT &&
-		    pieceX + j >= 0 && 
-		    pieceX + j < BOARD_WIDTH
-		) {
-		    if(current.shape()[i][j] == 1) {
-			temp[pieceY + i][pieceX + j] = current.icon();
-			//board[pieceY + i][pieceX + j] = current.icon();
-		    }
-		} 
+		    // translate it to where we want it
+		    glTranslatef(d_X, d_Y, 0.0f);
 		    
-		
-	    }
-	}
-	
-	newPiece();
-    
-    //piece is just free falling
-    } else {
-	bool collision = false;
-	LinkedNode* node = &board;
-	
-	for(int i = 0; i < pieceY; i++) {	
-	    node = node->next();
-	}   
-	
-	for(int i = 0; i < current.height(); i++) {
-	    for(int j = 0; j < current.width(); j++) {
-		if(
-		    pieceY + i >= 0 &&
-		    pieceY + i < BOARD_HEIGHT &&
-		    pieceX + j >= 0 && 
-		    pieceX + j < BOARD_WIDTH
-		) {
-		    if(current.shape()[i][j] == 1 && node->line()[pieceX + j] != ' ') {
-			collision = true;
-		    }
-		} 	
-	    }
-	    
-	    node = node->next();
-	}
-	
+		    glScalef(blockSize/2, blockSize/2, blockSize/2);
 
-	if(collision) {
-	    pieceY--;
-	    
-	    writeToBoard();
-	    
-	    for(int i = 0; i < current.height(); i++) {
-		for(int j = 0; j < current.width(); j++) {
-		    if(
-			pieceY + i >= 0 &&
-			pieceY + i < BOARD_HEIGHT &&
-			pieceX + j >= 0 && 
-			pieceX + j < BOARD_WIDTH
-		    ) {
-			if(current.shape()[i][j] == 1) {
-			    temp[pieceY + i][pieceX + j] = current.icon();
-			    //board[pieceY + i][pieceX + j] = current.icon();
-			}
-		    } 
-		}
-	    }
-	    
-	    newPiece();
+		    
+		    draw_square(hold.icon());
 
-	//did the piece touch the bottom of the board
-	} else {
-	
-	    for(int i = 0; i < current.height(); i++) {
-		for(int j = 0; j < current.width(); j++) {
-		    if(
-			pieceY + i >= 0 &&
-			pieceY + i < BOARD_HEIGHT &&
-			pieceX + j >= 0 && 
-			pieceX + j < BOARD_WIDTH 
-		    ) {
-			if(current.shape()[i][j] == 1) {
-			    temp[pieceY + i][pieceX + j] = current.icon();
-			}
-		    } 
-		}
+			
+		glPopMatrix(); // done with stack
 	    }
+	    d_X += blockSize;
 	}
+	d_Y -= blockSize;
+	d_X = WORLD_X / 5 * 4;
     }
 }
 
-void init() {
+void draw_Heads_Up() 
+{
+    draw_Score();
+    draw_Level();
     
-    LinkedNode* node = &board;
+    draw_Next();
+    draw_Hold();
+}
+
+
+
+//===================== Callbacks =====================
+void display() 
+{
+    
+    
+    
+    
+    
+    frames++;
+    
+    int d_X = WORLD_X / 5 * 2;
+    int d_Y = 0 + 20 * blockSize - 1 ;
+      
+        
+    glClear(GL_COLOR_BUFFER_BIT);	//clears to current background colour
+           
+    if (FPS) displayFPS();
+    
+    draw_Heads_Up();
+   
+    draw_Border(d_X - blockSize/2, d_Y + blockSize/2, 10 * blockSize, (- 20 * blockSize));
+    
+    for(int i = 0; i < BOARD_HEIGHT ; i++) {
+	for(int j = 0; j < BOARD_WIDTH; j++) {
+	    if(temp[i][j] != ' ') {
+	    
+		glPushMatrix();
+
+		    // translate it to where we want it
+		    glTranslatef(d_X, d_Y, 0.0f);
+		    
+		    // scale it up 
+		    //glScalef(1.0f, 1.0f, 1.0f);
+		    glScalef(blockSize/2, blockSize/2, blockSize/2);
+
+		    // rotate anticlockwise in-plane by 30 degrees
+		    glRotatef(0.0f, 0.0f, 0.0f, 1.0f); 
+		    
+		    draw_square(temp[i][j]);
+
+			    
+		glPopMatrix(); // done with stack
+	    }
+	    
+	    d_X += blockSize;
+	    
+	    
+	}
+	
+	d_Y -= blockSize;
+	d_X = WORLD_X / 5 * 2;
+	
+    }
+    
+    
+
+   
+    
+    
+    
+  
+    glutSwapBuffers(); 
+}
+
+void idle() 
+{
+
+	Clock::time_point now = Clock::now();
+	
+	milliseconds ms = chrono::duration_cast<milliseconds>(now - start);
+	
+	elapsed = ms.count();
+	
+	if( elapsed >= FPSdisplay) {
+		//cout<<frames/elapsed<<"\n";
+		fps = frames;
+		frames = 0;
+		start = Clock::now();
+		glutPostRedisplay();
+	}
+    
+
+    
+    ms = chrono::duration_cast<milliseconds>(now - lastMove);
+    int elapsed = ms.count();
+    
+    
+   
+	
+    if(elapsed > speed[level]) {
+	lastMove = Clock::now();
+	
+	pieceY++;
+	movePiece();
+	
+	glutPostRedisplay();
+	    
+    }
+    
+    
+}
+
+
+//===================== Init =====================
+
+void initGL() 
+{
+	// select viewing transformation matrix to modify
+	glMatrixMode(GL_PROJECTION); 
+
+	// set identity on matrix
+	glLoadIdentity();
+
+	// specify bottom-left and top-right corners
+	// of window in world coordinates
+	// takes LEFT, RIGHT, BOTTOM, TOP
+	gluOrtho2D(0, WORLD_X, 0, WORLD_Y);
+
+	// set background colour and transparency
+	// takes RGBA values
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f); // black	
+}
+
+void gameInit() 
+{
+    
+    level = 0;
+    
+    speed[0] = 53 / 60.0 * 1000;
+    speed[1] = 49 / 60.0 * 1000;
+    speed[2] = 45 / 60.0 * 1000;
+    speed[3] = 41 / 60.0 * 1000;
+    speed[4] = 37 / 60.0 * 1000;
+    speed[5] = 33 / 60.0 * 1000;
+    speed[6] = 28 / 60.0 * 1000;
+    speed[7] = 22 / 60.0 * 1000;
+    speed[8] = 17 / 60.0 * 1000;
+    speed[9] = 11 / 60.0 * 1000;
+    speed[10] = 10 / 60.0 * 1000;
+    speed[11] = 9 / 60.0 * 1000;
+    speed[12] = 8 / 60.0 * 1000;
+    speed[13] = 7 / 60.0 * 1000;
+    speed[14] = 6 / 60.0 * 1000;
+    speed[15] = 6 / 60.0 * 1000;
+    speed[16] = 5 / 60.0 * 1000;
+    speed[17] = 5 / 60.0 * 1000;
+    speed[18] = 4 / 60.0 * 1000;
+    speed[19] = 4 / 60.0 * 1000;
+    speed[20] = 3 / 60.0 * 1000;
+    
+    
+    linesCleared = 0;
+    
+    lastMove = Clock::now();
+    
+    holdInit = false;
+    gameOver = false;
+    
+    LinkedNode* node = new LinkedNode;
+    board = node;
     
     
     for(int i = 0; i < BOARD_HEIGHT; i++) {
@@ -514,7 +727,7 @@ void init() {
     }
    
     
-    switch(r + 10) {
+    switch((r + 2) % 7 + 1) {
 	
 	case 1:
 	    current = tetri_I;
@@ -539,40 +752,407 @@ void init() {
 	    break;  
     }
     
+    pieceY = 0 - current.height();
+    pieceX = BOARD_WIDTH / 2;
     
+    swapped = false;
     
 }
 
-int kbhit(void) {
-  struct termios oldt, newt;
+//=========== Game Functions ===========
+void calculate_Ghost() 
+{
+    //does the piece not fit on the board
+    
+    //did the piece touch another piece
+    
+    int ghostY = pieceY;
+    
+    LinkedNode* node = board;
+		    
+    for(int i = 0; i < ghostY; i++) {	
+	node = node->next();
+    } 
+		    
+    do{
+	
+	ghostY++;
+	
+	
+	if(ghostY + current.height() > BOARD_HEIGHT) {
+	    ghostY = BOARD_HEIGHT - current.height();
+	    
+	    
+	    for(int i = 0; i < current.height(); i++) {
+		for(int j = 0; j < current.width(); j++) {
+		    if(
+			ghostY + i >= 0 &&
+			ghostY + i < BOARD_HEIGHT &&
+			pieceX + j >= 0 && 
+			pieceX + j < BOARD_WIDTH
+		    ) {
+			if(current.shape()[i][j] == 1) {
+			    if(temp[ghostY + i][pieceX + j] != current.icon()) temp[ghostY + i][pieceX + j] = 'G';
+			}
+		    } 
+			
+		    
+		}
+	    }
+	    
+	    return;
+	
+	//piece is just free falling
+	} else {
+	    bool collision = false;
+	    LinkedNode* node = board;
+	    
+	    for(int i = 0; i < ghostY; i++) {	
+		node = node->next();
+	    }   
+	    
+	    int diff = 0;
+	    
+	    if(ghostY < 0) {
+		diff = ghostY;
+	    }
+		
+	    
+	    for(int i = 0; i < current.height() + diff; i++) {
+		for(int j = 0; j < current.width(); j++) {
+		    if(
+			ghostY + i >= 0 &&
+			ghostY + i < BOARD_HEIGHT &&
+			pieceX + j >= 0 && 
+			pieceX + j < BOARD_WIDTH
+		    ) {
+			if(current.shape()[i][j] == 1 && node->line()[pieceX + j] != ' ') {
+			    collision = true;
+			}
+		    } 	
+		}
+		
+		node = node->next();
+	    }
+	    
+
+	    if(collision) {
+		ghostY--;
+		
+		
+		for(int i = 0; i < current.height(); i++) {
+		    for(int j = 0; j < current.width(); j++) {
+			if(
+			    ghostY + i >= 0 &&
+			    ghostY + i < BOARD_HEIGHT &&
+			    pieceX + j >= 0 && 
+			    pieceX + j < BOARD_WIDTH
+			) {
+			    if(current.shape()[i][j] == 1) {
+				if(temp[ghostY + i][pieceX + j] != current.icon()) temp[ghostY + i][pieceX + j] = 'G';
+			    }
+			} 
+		    }
+		}
+		
+		return;
+
+	    //did the piece touch the bottom of the board
+	    } else {
+	    
+		for(int i = 0; i < current.height(); i++) {
+		    for(int j = 0; j < current.width(); j++) {
+			if(
+			    ghostY + i >= 0 &&
+			    ghostY + i < BOARD_HEIGHT &&
+			    pieceX + j >= 0 && 
+			    pieceX + j < BOARD_WIDTH 
+			) {
+			    if(current.shape()[i][j] == 1) {
+				//temp[ghostY + i][pieceX + j] = 'G';
+			    }
+			} 
+		    }
+		}
+	    }
+	}
+			    
+    } while (ghostY != 0 - current.height());
+				
+    
+    
+   
+}
+
+void resetTempBoard() 
+{
+    
+   LinkedNode* node = board;
+   //printf("Enter\n");
+   for(int i = 0; i < BOARD_HEIGHT; i++) {
+	for(int j = 0; j < BOARD_WIDTH; j++) {
+	   
+		temp[i][j] = node->line()[j];
+
+	}
+	
+	node = node->next();
+    }   
+    //printf("Exit\n");
+       
+}
+
+void newPiece() 
+{
+    
+    current = following;
+    
+    /* initialize random seed: */
+    srand (time(NULL));
+
+    /* generate secret number between 1 and 10: */
+    int r = rand() % 7 + 1;
+
+    switch(r) {
+	
+	case 1:
+	    following = tetri_I;
+	    break;
+	case 2:
+	    following = tetri_L;
+	    break;
+	case 3:
+	    following = tetri_J;
+	    break;
+	case 4:
+	    following = tetri_O;
+	    break;
+	case 5:
+	    following = tetri_S;
+	    break;
+	case 6:
+	    following = tetri_Z;
+	    break;
+	case 7:
+	    following = tetri_T;
+	    break;  
+    }
   
-  int oldf;
-
-  tcgetattr(STDIN_FILENO, &oldt);
-  newt = oldt;
-  newt.c_lflag &= ~(ICANON | ECHO);
-  tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-  oldf = fcntl(STDIN_FILENO, F_GETFL, 0);
-  fcntl(STDIN_FILENO, F_SETFL, oldf | O_NONBLOCK);
-
-  ch = getchar();
+    
   
-  
+    pieceY = 0 - current.height();
+    pieceX = BOARD_WIDTH / 2;
+        
+    swapped = false;
+}
 
-  tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-  fcntl(STDIN_FILENO, F_SETFL, oldf);
+void writeToBoard() 
+{
+         
+   LinkedNode* node = board;
+   LinkedNode* prev = board;
+   
+   int linesComepleted = 0;
+    
+   for(int i = 0; i < pieceY; i++) {	
+	prev = node;
+	node = node->next();
+    }   
+    
+    
+    for(int i = 0; i < current.height(); i++) {
+	
+	for(int j = 0; j < current.width(); j++) {
+	    if(current.shape()[i][j] == 1) {
+		node->line()[pieceX + j] = current.icon();
+			
+	    }
+	}
+	
+	bool complete = true;
+	    
+	for(int k = 0; k < BOARD_WIDTH; k++) {
+	    if(node->line()[k] == 32) {
+		complete = false;
+		break;
+	    }
+	}
+	
+	if(complete) {
+	    
+	    linesComepleted++;
+	    
+	    prev->setNext(node->next());
+	    
+	    int* line = (int*) malloc(BOARD_WIDTH * sizeof(int));
+	    
+	    for(int t = 0; t < BOARD_WIDTH; t++) {
+		line[t] = ' ';
+	    }
+	    
+	    LinkedNode* n = (LinkedNode*) new LinkedNode;
+	    n->setNext(board);
+	    n->setLine(line);
+	    
+	    board = n;
+	    
+	} else {
+	    prev = node;
+	}
+	
+	node = node->next();
+    }
+    
+    switch(linesComepleted) {
+	
+	case 1: 
+	    score += 40 * (level + 1);
+	    break;
+	case 2:
+	    score += 100 * (level + 1);
+	    break;
+	case 3:
+	    score += 300 * (level + 1);
+	    break;
+	case 4:
+	    score += 1200 * (level + 1);
+	    break;
+	
+    }
+    
+    linesCleared += linesComepleted;
+    
+    if(linesCleared > 10) {
+	linesCleared = 0;
+	level++;
+    }
 
-  if(ch != EOF)
-  {
-    //ungetc(ch, stdin);
-    return 1;
-  }
+    
+}
 
-  return 0;
-} 
+void movePiece() 
+{
+    
+    //does the piece not fit on the board
+    
+    //did the piece touch another piece
+    
+    resetTempBoard();
+    
+    if(pieceY + current.height() > BOARD_HEIGHT) {
+	pieceY = BOARD_HEIGHT - current.height();
+	
+	writeToBoard();
+	
+	for(int i = 0; i < current.height(); i++) {
+	    for(int j = 0; j < current.width(); j++) {
+		if(
+		    pieceY + i >= 0 &&
+		    pieceY + i < BOARD_HEIGHT &&
+		    pieceX + j >= 0 && 
+		    pieceX + j < BOARD_WIDTH
+		) {
+		    if(current.shape()[i][j] == 1) {
+			temp[pieceY + i][pieceX + j] = current.icon();
+			//board[pieceY + i][pieceX + j] = current.icon();
+		    }
+		} 
+		    
+		
+	    }
+	}
+	
+	newPiece();
+    
+    //piece is just free falling
+    } else {
+	bool collision = false;
+	LinkedNode* node = board;
+	
+	for(int i = 0; i < pieceY; i++) {	
+	    node = node->next();
+	}   
+	
+	int diff = 0;
+	
+	if(pieceY < 0) {
+	    diff = pieceY;
+	}
+	    
+	
+	for(int i = 0; i < current.height() + diff; i++) {
+	    for(int j = 0; j < current.width(); j++) {
+		if(
+		    pieceY + i >= 0 &&
+		    pieceY + i < BOARD_HEIGHT &&
+		    pieceX + j >= 0 && 
+		    pieceX + j < BOARD_WIDTH
+		) {
+		    if(current.shape()[i][j] == 1 && node->line()[pieceX + j] != ' ') {
+			collision = true;
+		    }
+		} 	
+	    }
+	    
+	    node = node->next();
+	}
+	
 
+	if(collision) {
+	    pieceY--;
+	    
+	
+	    
+	    writeToBoard();
+	    
+	    for(int i = 0; i < current.height(); i++) {
+		for(int j = 0; j < current.width(); j++) {
+		    if(
+			pieceY + i >= 0 &&
+			pieceY + i < BOARD_HEIGHT &&
+			pieceX + j >= 0 && 
+			pieceX + j < BOARD_WIDTH
+		    ) {
+			if(current.shape()[i][j] == 1) {
+			    temp[pieceY + i][pieceX + j] = current.icon();
+			    //board[pieceY + i][pieceX + j] = current.icon();
+			}
+		    } 
+		}
+	    }
+	    
+	    if(pieceY < 0 ){
+		gameOver = true;
+		
+	    }
+	    
+	    newPiece();
 
-void rotate() {
+	//did the piece touch the bottom of the board
+	} else {
+	
+	    for(int i = 0; i < current.height(); i++) {
+		for(int j = 0; j < current.width(); j++) {
+		    if(
+			pieceY + i >= 0 &&
+			pieceY + i < BOARD_HEIGHT &&
+			pieceX + j >= 0 && 
+			pieceX + j < BOARD_WIDTH 
+		    ) {
+			if(current.shape()[i][j] == 1) {
+			    temp[pieceY + i][pieceX + j] = current.icon();
+			}
+		    } 
+		}
+	    }
+	}
+    }
+    
+    calculate_Ghost();
+}
+
+void rotate() 
+{
     
     int w = current.width();
     int h = current.height();
@@ -589,6 +1169,15 @@ void rotate() {
 	}
     }
     
+    int aux;
+    for(int i = 0; i < h; i++) {
+	aux = shape_r[0][i];
+	shape_r[0][i] = shape_r[w-1][i];
+	shape_r[w-1][i] = aux;
+    }
+    
+
+    
     
     //free(current.shape());
     
@@ -598,16 +1187,70 @@ void rotate() {
     
 }
 
-void checkInput() {
-    
-      if(kbhit()){ //kbhit is 1 if a key has been pressed
-		//printf("pressed key was: %c\n", ch);
+
+//===================== Input =====================
+
+void keyboard(unsigned char key, int x, int y) 
+{ // will get which key was pressed and x and y positions if required
+
+	//std::cerr << "\t you pressed the " << key << " key" << std::endl;
+	//std::cerr << "\t positions X: " << x <<" Y: "<< y << std::endl;
+	
+	
+	switch (key)
+	{
+		case 'q': 
+		    exit(1); // quit!
 		
-		LinkedNode* node = &board;
-	  
-		switch (ch) {
+		case 'f': 
+		    if(!fullscreen){
+			glutFullScreen();
+			fullscreen = true;
+		    } else if(fullscreen){
+			glutReshapeWindow(WINDOW_X, WINDOW_Y);
+			glutPositionWindow(100,100);
+			fullscreen = false;
+		    }
+		    break;
+		
+		case 'r': break;
+		
+		case '+': break;
+		
+		case '-': break;
+		
+		case ' ': 
 		    
-		    case 'd': 
+		    LinkedNode* node = board;
+		    
+		    for(int i = 0; i < pieceY; i++) {	
+			node = node->next();
+		    } 
+		    
+		    do{
+			score += 2;
+			pieceY++;
+			movePiece();
+			    
+		    } while (pieceY != 0 - current.height());
+				
+		    resetTempBoard();
+		    break;
+	}
+
+	glutPostRedisplay(); // force a redraw
+}
+
+void special(int key, int, int) 
+{ // any special key pressed like arrow keys
+	// handle special keys
+    
+	LinkedNode* node = board;
+    
+	switch (key)
+	{
+		
+		  case GLUT_KEY_RIGHT: 
 			
 			
 	
@@ -635,7 +1278,7 @@ void checkInput() {
 			
 			
 			break;
-		    case 'a':
+		    case GLUT_KEY_LEFT:
 	
 			for(int i = 0; i < pieceY; i++) {	
 			    node = node->next();
@@ -660,68 +1303,118 @@ void checkInput() {
 			if(pieceX < 0) {
 			    pieceX = 0;
 			} 
-			
+			glutPostRedisplay(); // force a redraw
 			break;
-		    case 's': 
+		    case GLUT_KEY_DOWN: 
 			pieceY++;
 			
 			if(pieceY >= BOARD_HEIGHT) {
 			    pieceY = BOARD_HEIGHT;
 			}
-			
+			score++;
+			glutPostRedisplay(); // force a redraw
 			break;
-		    case 'w': 
+		    case GLUT_KEY_UP: 
 			rotate();
+			glutPostRedisplay(); // force a redraw
 			break;
-		    case ' ': 
-			//drop
+			
+		    case GLUT_KEY_HOME: 
+			if(swapped) {
+			    return;
+			} else { 
+			    swapped = true;
+			    
+			    
+			    if (holdInit) {
+				Piece aux;
+				aux = hold;
+				hold = current;
+				current = aux;
+				
+				pieceY = 0 - current.height();
+				pieceX = BOARD_WIDTH / 2;
+        
+			    } else {
+				
+				hold = current;
+				
+				newPiece();
+				
+				holdInit = true;
+			    }
+			}
+			glutPostRedisplay(); // force a redraw
 			break;
-		    case 'z': 
-			//store
-			break;
-		    
-		}
-		
-		movePiece();
-		draw();
-		    
-		    
 		
 		
-		ch = 0;
 	}
-    
+	movePiece();
+	glutPostRedisplay(); // force a redraw
+	
 }
 
-//=========== Main ===========
-int main() {
-      
-    init();
+void mouse_click(int button, int state, int x, int y) 
+{
+    
+	if (button==GLUT_LEFT_BUTTON) {
+	    
+		std::cerr << "\t left mouse button pressed!" << std::endl;
+		
+		if (state==GLUT_UP)
+		{
+			std::cerr << "\t button released...click finished" << std::endl;
 
-    newPiece();
+		}
+
+	} else if (button==GLUT_RIGHT_BUTTON) {
+		std::cerr << "\t right mouse button pressed!" << std::endl;
+		if (state==GLUT_UP) {
+			std::cerr << "\t button released...click finished" << std::endl;
+
+		}
+	}
+	
+	glutPostRedisplay();
+}
+
+void mouse_motion(int x, int y) 
+{
+	//std::cerr << "\t mouse is at (" << x << ", " << y << ")" << std::endl;
+	//glutPostRedisplay();
+}
+
+
+//=================== Main ===================
+int main (int argc, char* argv[]) 
+{
+  
+    //initialise glut
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_DOUBLE|GLUT_RGBA); // flags bitwise OR'd together
+     
+    // display window size is in pixels on screen
+    glutInitWindowSize(WINDOW_X, WINDOW_Y); 
+    glutInitWindowPosition(50, 50); 
+    glutCreateWindow("I am glut");
     
-    while(1) {
-	
-	movePiece();
-	draw();
-	
-	Clock::time_point start = Clock::now();
- 	int elapsed = 0;
-	
-	while(elapsed < 1000) {
-	  
-	    checkInput();
-	    
-	    Clock::time_point now = Clock::now();
-	    milliseconds ms = chrono::duration_cast<milliseconds>(now - start);
-	    elapsed = ms.count();
-	    
-	}	
-	
-	pieceY++;
-	
-    }
+    //callback functions
+    glutDisplayFunc(display);
+    glutIdleFunc(idle);
     
+    glutKeyboardFunc(keyboard); 
+    glutSpecialFunc(special);
     
-    return 0;   
+    glutMouseFunc(mouse_click); 
+    glutPassiveMotionFunc(mouse_motion); 
+    
+    //initialise program
+    initGL();
+    gameInit();
+    
+    //enter infinite loop
+    glutMainLoop();
+    
+    return 0;
+  
 }
