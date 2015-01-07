@@ -20,6 +20,8 @@ class Piece;
 class LinkedNode;
 
 unsigned int make_bitmap_text();
+Piece randomPiece();
+bool collision();
 void draw_bitmap_text(const char* text);
 void draw_stroke_text(const char* text);
 void tetris();
@@ -27,6 +29,14 @@ void newPiece();
 void movePiece();
 void resetTempBoard();
 void draw_Ghost_Block();
+void draw_square(char c);
+void holdPiece();
+void cleanup();
+void quitGame();
+void toggleFullscreen();
+void dropPiece();
+void calculate_Ghost();
+void updateBoard();
 
 
 //=========== Shorthands ===========
@@ -62,6 +72,9 @@ int level;
 int pieceX;
 int pieceY;
 
+int Y = 0;
+int X = 0;
+
 
 bool swapped;
 bool holdInit;
@@ -81,6 +94,8 @@ int fps = 0;
 int FPSdisplay = 1000;
 
 int blockSize = WORLD_X / 5 / 10;
+
+int aux_Box_S = 5 * blockSize;
 
 Clock::time_point start;
 Clock::time_point lastMove;
@@ -132,7 +147,12 @@ public:
     int   icon()   { return i;  };
     int** shape()  { return s;  }
     
-} tetri_O, tetri_L, tetri_J, tetri_T, tetri_I, tetri_S, tetri_Z, current, following, hold;
+} tetri_O, tetri_L, tetri_J, tetri_T, tetri_I, tetri_S, tetri_Z;
+
+Piece current;
+Piece hold;
+Piece following;
+
 
 
 //=============== Drawing Functions ===============
@@ -152,6 +172,7 @@ void displayFPS()
 {
 	glColor3f(1.0f, 1.0f, 0.0f); // set RGB values of colour to draw
     
+
 	glPushMatrix(); //FPS
 		glScalef(0.3f, 0.3f, 1.0f); // this will work
 		glTranslatef(10, 10, 0.0f); // this will work
@@ -168,7 +189,7 @@ void displayFPS()
 }
 
 void draw_square(char c) 
-{	
+{
     
 	glColor3f(0.0f, 0.0f, 0.0f); // set RGB values of colour to draw
     
@@ -230,7 +251,8 @@ void draw_square(char c)
 	glEnd();
 }
 
-void draw_Border(int d_X, int d_Y, int size_X, int size_Y) {
+void draw_Border(int d_X, int d_Y, int size_X, int size_Y) 
+{
     
     glColor3f(1.0f, 1.0f, 1.0f); // set RGB values of colour to draw
     
@@ -244,7 +266,7 @@ void draw_Border(int d_X, int d_Y, int size_X, int size_Y) {
 }
 
 void draw_Ghost_Block() 
-{	
+{
     
 	glColor3f(1.0f, 1.0f, 1.0f); // set RGB values of colour to draw
     
@@ -272,8 +294,8 @@ void draw_Score()
     glColor3f(1.0f, 1.0f, 0.0f); // set RGB values of colour to draw
     
     glPushMatrix(); //FPS
+	glTranslatef(10, WORLD_Y - 40, 0.0f); // this will work
 	glScalef(0.3f, 0.3f, 1.0f); // this will work
-	glTranslatef(10, WINDOW_X * 2 - 10, 0.0f); // this will work
 	
 	string Result;          // string which will contain the result
 	ostringstream convert;   // stream used for the conversion
@@ -290,8 +312,9 @@ void draw_Level()
     glColor3f(1.0f, 1.0f, 0.0f); // set RGB values of colour to draw
     
     glPushMatrix(); //FPS
+	
+	glTranslatef(10, WORLD_Y - 80, 0.0f); // this will work
 	glScalef(0.3f, 0.3f, 1.0f); // this will work
-	glTranslatef(10, WINDOW_X * 2 - 200, 0.0f); // this will work
 	
 	string Result;          // string which will contain the result
 	ostringstream convert;   // stream used for the conversion
@@ -305,18 +328,25 @@ void draw_Level()
 
 void draw_Next() 
 {
+    glColor3f(1.0f, 1.0f, 1.0f); // set RGB values of colour to draw
     
     int d_X = WORLD_X / 5;
     int d_Y = 0 + 20 * blockSize - 1 ;
     
      glPushMatrix();
+	glTranslatef(d_X - blockSize/2 - aux_Box_S/2, d_Y + 50, 0.0f);
 	glScalef(0.3f, 0.3f, 1.0f);
-	glTranslatef(d_X, d_Y, 0.0f);
 	
 	draw_stroke_text("Next: "); 
 	
     glPopMatrix();
     
+    
+    draw_Border(d_X - blockSize/2 - aux_Box_S/2, d_Y + blockSize/2, aux_Box_S, -aux_Box_S );
+    
+    
+    d_X = WORLD_X / 5 + (-1) * blockSize;
+    d_Y = 0 + 20 * blockSize - 1 - (5 - following.height()) * blockSize;
     
     for(int i = 0; i < following.height(); i++) {
 	for(int j = 0; j < following.width(); j++) {
@@ -337,7 +367,7 @@ void draw_Next()
 	    d_X += blockSize;
 	}
 	d_Y -= blockSize;
-	d_X = WORLD_X / 5;
+	d_X = WORLD_X / 5 + (-1) * blockSize;
 	
     }
     
@@ -348,9 +378,23 @@ void draw_Next()
 
 void draw_Hold() 
 {
-       
+    glColor3f(1.0f, 1.0f, 1.0f); // set RGB values of colour to draw   
+    
     int d_X = WORLD_X / 5 * 4;
     int d_Y = 0 + 20 * blockSize - 1 ;
+    
+    glPushMatrix();
+	glTranslatef(d_X - blockSize/2 - aux_Box_S/2, d_Y + 50, 0.0f);
+	glScalef(0.3f, 0.3f, 1.0f);
+	
+	draw_stroke_text("Hold: "); 
+	
+    glPopMatrix();
+    
+    draw_Border(d_X - blockSize/2 - aux_Box_S/2, d_Y + blockSize/2, aux_Box_S, -aux_Box_S );
+    
+    d_X = WORLD_X / 5 * 4 + (-1) * blockSize;
+    d_Y = 0 + 20 * blockSize - 1 - (5 - hold.height()) * blockSize;
     
     for(int i = 0; i < hold.height(); i++) {
 	for(int j = 0; j < hold.width(); j++) {
@@ -371,12 +415,12 @@ void draw_Hold()
 	    d_X += blockSize;
 	}
 	d_Y -= blockSize;
-	d_X = WORLD_X / 5 * 4;
+	d_X = WORLD_X / 5 * 4 + (-1) * blockSize;
     }
 }
 
 void draw_Heads_Up() 
-{
+{    
     draw_Score();
     draw_Level();
     
@@ -384,38 +428,26 @@ void draw_Heads_Up()
     draw_Hold();
 }
 
-
-
-//===================== Callbacks =====================
-void display() 
+void draw_Board() 
 {
-    
-    
-    
-    
-    
-    frames++;
-    
     int d_X = WORLD_X / 5 * 2;
     int d_Y = 0 + 20 * blockSize - 1 ;
-      
-        
-    glClear(GL_COLOR_BUFFER_BIT);	//clears to current background colour
-           
-    if (FPS) displayFPS();
     
-    draw_Heads_Up();
-   
-    draw_Border(d_X - blockSize/2, d_Y + blockSize/2, 10 * blockSize, (- 20 * blockSize));
+    draw_Border(d_X - blockSize/2 - 1, d_Y + blockSize/2 + 1, 10 * blockSize + 2, (- 20 * blockSize) - 3);
     
     for(int i = 0; i < BOARD_HEIGHT ; i++) {
+	glPushMatrix();
+	
+	glTranslatef(d_X, d_Y - i * blockSize, 0.0f);
+	
+	
 	for(int j = 0; j < BOARD_WIDTH; j++) {
 	    if(temp[i][j] != ' ') {
 	    
 		glPushMatrix();
 
 		    // translate it to where we want it
-		    glTranslatef(d_X, d_Y, 0.0f);
+		    glTranslatef(0 + j * blockSize, 0, 0.0f);
 		    
 		    // scale it up 
 		    //glScalef(1.0f, 1.0f, 1.0f);
@@ -425,28 +457,30 @@ void display()
 		    glRotatef(0.0f, 0.0f, 0.0f, 1.0f); 
 		    
 		    draw_square(temp[i][j]);
-
-			    
+		    
 		glPopMatrix(); // done with stack
-	    }
-	    
-	    d_X += blockSize;
-	    
-	    
-	}
-	
-	d_Y -= blockSize;
-	d_X = WORLD_X / 5 * 2;
-	
-    }
-    
-    
 
+	    }	    
+	}
+	glPopMatrix(); // done with stack
+    }
+}
+
+
+//===================== Callbacks =====================
+void display() 
+{
+    frames++;
+    
+    glClear(GL_COLOR_BUFFER_BIT);	//clears to current background colour
+    
+    if (FPS) displayFPS();
+    
+    draw_Heads_Up();
    
+    draw_Board();
     
     
-    
-  
     glutSwapBuffers(); 
 }
 
@@ -465,6 +499,7 @@ void idle()
 		frames = 0;
 		start = Clock::now();
 		glutPostRedisplay();
+		return;
 	}
     
 
@@ -482,15 +517,17 @@ void idle()
 	movePiece();
 	
 	glutPostRedisplay();
+	return;
 	    
     }
+    
+    glutPostRedisplay();
     
     
 }
 
 
-//===================== Init =====================
-
+//===================== Setup =====================
 void initGL() 
 {
 	// select viewing transformation matrix to modify
@@ -507,6 +544,16 @@ void initGL()
 	// set background colour and transparency
 	// takes RGBA values
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f); // black	
+}
+
+int** allocateArray(int height, int width) 
+{
+    
+    int** p = ( int** ) malloc( height *sizeof( int* ));
+	for ( int i = 0; i < height; i++ ) {
+	    p[i] = ( int* ) malloc( width * sizeof(int) );	
+	}
+    return p;
 }
 
 void gameInit() 
@@ -579,10 +626,8 @@ void gameInit()
 	height = 2;
 	width = 2;
 	
-	int** shape_O = ( int** ) malloc( height *sizeof( int* ));
-	for ( int i = 0; i < height; i++ ) {
-	    shape_O[i] = ( int* ) malloc( width * sizeof(int) );	
-	}
+	int** shape_O = allocateArray(height, width);
+	
 	
 	shape_O[0][0] = 1; shape_O[0][1] = 1;
 	shape_O[1][0] = 1; shape_O[1][1] = 1;
@@ -594,163 +639,86 @@ void gameInit()
     
 		
 	height = 4;
-	width = 1;
+	width = 4;
 	
-	int** shape_I = ( int** ) malloc( height *sizeof( int* ));
-	for ( int i = 0; i < height; i++ ) {
-	    shape_I[i] = ( int* ) malloc( width * sizeof(int) );	
-	}
+	int** shape_I = allocateArray(height, width);
 	
-	shape_I[0][0] = 1; 
-	shape_I[1][0] = 1; 
-	shape_I[2][0] = 1; 
-	shape_I[3][0] = 1; 
-	
-	icon = 'I';
+	shape_I[0][0] = 0; shape_I[0][1] = 1; shape_I[0][2] = 0;  shape_I[0][3] = 0;
+	shape_I[1][0] = 0; shape_I[1][1] = 1; shape_I[1][2] = 0;  shape_I[1][3] = 0;
+	shape_I[2][0] = 0; shape_I[2][1] = 1; shape_I[2][2] = 0;  shape_I[2][3] = 0;
+	shape_I[3][0] = 0; shape_I[3][1] = 1; shape_I[3][2] = 0;  shape_I[3][3] = 0;
     
-    tetri_I.init(shape_I, height, width, icon);
+    tetri_I.init(shape_I, height, width, 'I');
     
     
 	height = 3;
-	width = 2;
-	
-	int** shape_L = ( int** ) malloc( height *sizeof( int* ));
-	for ( int i = 0; i < height; i++ ) {
-	    shape_L[i] = ( int* ) malloc( width * sizeof(int) );	
-	}
-	
-	shape_L[0][0] = 1; shape_L[0][1] = 0;
-	shape_L[1][0] = 1; shape_L[1][1] = 0;
-	shape_L[2][0] = 1; shape_L[2][1] = 1;
-	
-	icon = 'L';
-    
-    tetri_L.init(shape_L, height, width, icon);
-    
-    
-	height = 3;
-	width = 2;
-	
-	int** shape_J = ( int** ) malloc( height *sizeof( int* ));
-	for ( int i = 0; i < height; i++ ) {
-	    shape_J[i] = ( int* ) malloc( width * sizeof(int) );	
-	}
-	
-	shape_J[0][0] = 0; shape_J[0][1] = 1;
-	shape_J[1][0] = 0; shape_J[1][1] = 1;
-	shape_J[2][0] = 1; shape_J[2][1] = 1;
-	
-	icon = 'J';
-    
-    tetri_J.init(shape_J, height, width, icon);
-        
-    	height = 2;
 	width = 3;
 	
-	int** shape_T = ( int** ) malloc( height * sizeof( int* ));
-	for ( int i = 0; i < height; i++ ) {
-	    shape_T[i] = ( int* ) malloc( width * sizeof(int) );	
-	}
+	int** shape_L = allocateArray(height, width);
+	
+	shape_L[0][0] = 0; shape_L[0][1] = 1; shape_L[0][2] = 0;
+	shape_L[1][0] = 0; shape_L[1][1] = 1; shape_L[1][2] = 0;
+	shape_L[2][0] = 0; shape_L[2][1] = 1; shape_L[2][2] = 1;
+	
+    
+    tetri_L.init(shape_L, height, width, 'L');
+    
+    
+	height = 3;
+	width = 3;
+	
+	int** shape_J = allocateArray(height, width);
+	
+	shape_J[0][0] = 0; shape_J[0][1] = 1; shape_J[0][2] = 0;
+	shape_J[1][0] = 0; shape_J[1][1] = 1; shape_J[1][2] = 0;
+	shape_J[2][0] = 1; shape_J[2][1] = 1; shape_J[2][2] = 0;
+	
+    
+    tetri_J.init(shape_J, height, width, 'J');
+        
+    	height = 3;
+	width = 3;
+	
+	int** shape_T = allocateArray(height, width);
 	
 	shape_T[0][0] = 0; shape_T[0][1] = 1; shape_T[0][2] = 0; 
-	shape_T[1][0] = 1; shape_T[1][1] = 1; shape_T[1][2] = 1;	
+	shape_T[1][0] = 1; shape_T[1][1] = 1; shape_T[1][2] = 1;
+	shape_T[2][0] = 0; shape_T[2][1] = 0; shape_T[2][2] = 0;		
 
-	icon = 'T';
 
-    tetri_T.init(shape_T, height, width, icon);
+    tetri_T.init(shape_T, height, width, 'T');
       
     
-    	height = 2;
+    	height = 3;
 	width = 3;
 	
-	int** shape_Z = ( int** ) malloc( height *sizeof( int* ));
-	for ( int i = 0; i < height; i++ ) {
-	    shape_Z[i] = ( int* ) malloc( width * sizeof(int) );	
-	}
+	int** shape_Z = allocateArray(height, width);
 	
 	shape_Z[0][0] = 1; shape_Z[0][1] = 1; shape_Z[0][2] = 0;
 	shape_Z[1][0] = 0; shape_Z[1][1] = 1; shape_Z[1][2] = 1;
-	
-	icon = 'Z';
+
     
-    tetri_Z.init(shape_Z, height, width, icon);
+    tetri_Z.init(shape_Z, height, width, 'Z');
     
     
-    	height = 2;
+    	height = 3;
 	width = 3;
 	
-	int** shape_S = ( int** ) malloc( height *sizeof( int* ));
-	for ( int i = 0; i < height; i++ ) {
-	    shape_S[i] = ( int* ) malloc( width * sizeof(int) );	
-	}
+	int** shape_S = allocateArray(height, width);
 	
-	shape_S[0][0] = 0; shape_S[0][1] = 1; shape_S[0][2] = 1;
-	shape_S[1][0] = 1; shape_S[1][1] = 1; shape_S[1][2] = 0;
-	
-	icon = 'S';
+	shape_S[0][0] = 0; shape_S[0][1] = 0; shape_S[0][2] = 0;
+	shape_S[1][0] = 0; shape_S[1][1] = 1; shape_S[1][2] = 1;
+	shape_S[2][0] = 1; shape_S[2][1] = 1; shape_S[2][2] = 0;
     
-    tetri_S.init(shape_S, height, width, icon);
-    
+    tetri_S.init(shape_S, height, width, 'S');
     
     
     
-    
-    /* initialize random seed: */
     srand (time(NULL));
-
-    /* generate secret number between 1 and 10: */
-    int r = rand() % 7 + 1;
-
-    switch(r) {
-	
-	case 1:
-	    following = tetri_I;
-	    break;
-	case 2:
-	    following = tetri_L;
-	    break;
-	case 3:
-	    following = tetri_J;
-	    break;
-	case 4:
-	    following = tetri_O;
-	    break;
-	case 5:
-	    following = tetri_S;
-	    break;
-	case 6:
-	    following = tetri_Z;
-	    break;
-	case 7:
-	    following = tetri_T;
-	    break;  
-    }
-   
     
-    switch((r + 2) % 7 + 1) {
-	
-	case 1:
-	    current = tetri_I;
-	    break;
-	case 2:
-	    current = tetri_L;
-	    break;
-	case 3:
-	    current = tetri_J;
-	    break;
-	case 4:
-	    current = tetri_O;
-	    break;
-	case 5:
-	    current = tetri_S;
-	    break;
-	case 6:
-	    current = tetri_Z;
-	    break;
-	case 7:
-	    current = tetri_T;
-	    break;  
-    }
+    current = randomPiece();
+    
+    following = randomPiece();
     
     pieceY = 0 - current.height();
     pieceX = BOARD_WIDTH / 2;
@@ -759,7 +727,285 @@ void gameInit()
     
 }
 
+void restart() 
+{
+    
+    level = 0;
+    score = 0;
+    
+    linesCleared = 0;
+    
+    holdInit = false;
+    gameOver = false;
+    
+    
+    LinkedNode* node = board;
+
+    
+     
+   for(int i = 0; i < BOARD_HEIGHT; i++) {
+	for(int j = 0; j < BOARD_WIDTH; j++) {
+	   
+		temp[i][j] = ' ';
+		node->line()[j] = ' ';
+
+	}
+	
+	node = node->next();
+    }   
+    
+    current = randomPiece();
+    
+    following = randomPiece();
+    
+    pieceY = 0 - current.height();
+    pieceX = BOARD_WIDTH / 2;
+    
+    swapped = false;
+}
+
+void cleanup() 
+{
+    
+    LinkedNode* current = board;
+    LinkedNode* next = board;
+    
+    for(int i = 0; i < BOARD_HEIGHT; i++) {	
+	
+	next = current->next();
+	free(current);
+	current = next;
+    }
+    
+    //tetri_I.shape();
+    
+    //board.delete();
+    
+    
+}
+
+
 //=========== Game Functions ===========
+void updateTemp()
+{
+    
+    for(int i = 0; i < current.height(); i++) {
+	for(int j = 0; j < current.width(); j++) {
+	    //sanity check
+	    if(
+		pieceY + i >= 0 &&
+		pieceY + i < BOARD_HEIGHT &&
+		pieceX + j >= 0 && 
+		pieceX + j < BOARD_WIDTH
+	    ) {
+		if(current.shape()[i][j] == 1) {
+		    temp[pieceY + i][pieceX + j] = current.icon();
+		}
+	    } 
+	}
+    }
+}
+
+void movePiece()
+{
+    resetTempBoard();
+    
+    if(collision()) {	//place the piece and generate a new one
+
+	if(pieceY < 0 ){
+	    gameOver = true;
+	    printf("Game Over\n");
+	    restart();
+	    
+	    return;
+	}
+	
+	updateBoard();
+	updateTemp();
+	
+	newPiece();
+	
+    } else {  //update the draw array
+    
+	updateTemp();
+    }
+    
+    
+    calculate_Ghost();
+}
+
+void resetTempBoard()
+{
+    
+   LinkedNode* node = board;
+  
+   for(int i = 0; i < BOARD_HEIGHT; i++) {
+	for(int j = 0; j < BOARD_WIDTH; j++) {
+	   
+		temp[i][j] = node->line()[j];
+
+	}
+	
+	node = node->next();
+    }   
+       
+}
+
+void newPiece()
+{
+    
+    current = following;
+    
+    following = randomPiece();
+  
+    pieceY = 0 - current.height();
+    pieceX = BOARD_WIDTH / 2 - current.width();
+        
+    swapped = false;
+}
+
+void rotateRight()
+{
+    
+    int w = current.width();
+    int h = current.height();
+    
+    
+    int** shape_r = ( int** ) malloc( w *sizeof( int* ));
+    for ( int i = 0; i < w; i++ ) {
+	shape_r[i] = ( int* ) malloc( h * sizeof(int) );	
+    }
+    
+    for(int i = 0; i < h; i++) {
+	for(int j = 0; j < w; j++) {
+	    shape_r[j][i] = current.shape()[i][j];
+	}
+    }
+    
+    /*
+    int aux;
+    for(int i = 0; i < h; i++) {
+	aux = shape_r[0][i];
+	shape_r[0][i] = shape_r[w-1][i];
+	shape_r[w-1][i] = aux;
+    }
+    */
+    
+    int aux;
+    for(int i = 0; i < w; i++) {
+	aux = shape_r[i][0];
+	shape_r[i][0] = shape_r[i][h -1];
+	shape_r[i][h - 1] = aux;
+    }
+    
+
+    
+    
+    //free(current.shape());
+    
+    current.setShape(shape_r);
+    current.setHeight(w);
+    current.setWidth(h);
+    
+}
+
+void rotateLeft()
+{
+    
+    int w = current.width();
+    int h = current.height();
+    
+    
+    int** shape_r = ( int** ) malloc( w *sizeof( int* ));
+    for ( int i = 0; i < w; i++ ) {
+	shape_r[i] = ( int* ) malloc( h * sizeof(int) );	
+    }
+    
+    for(int i = 0; i < h; i++) {
+	for(int j = 0; j < w; j++) {
+	    shape_r[j][i] = current.shape()[i][j];
+	}
+    }
+    
+    
+   
+    int aux;
+    for(int i = 0; i < h; i++) {
+	aux = shape_r[0][i];
+	shape_r[0][i] = shape_r[w-1][i];
+	shape_r[w-1][i] = aux;
+    }
+    
+    
+    //free(current.shape());
+    
+    current.setShape(shape_r);
+    current.setHeight(w);
+    current.setWidth(h);
+    
+}
+
+void holdPiece()
+{
+    if(swapped) {
+	return;
+    } else { 
+	swapped = true;
+    if (holdInit) {
+	    Piece aux;
+	    aux = hold;
+	    hold = current;
+	    current = aux;
+	    
+	    pieceY = 0 - current.height();
+	    pieceX = BOARD_WIDTH / 2;
+
+	} else {
+	    
+	    hold = current;
+	    
+	    newPiece();
+	    
+	    holdInit = true;
+	}
+    }
+    
+}
+
+Piece randomPiece() 
+{
+      /* generate secret number between 1 and 10: */
+    int r = rand() % 7 + 1;
+    
+     switch(r) {
+	
+	case 1:
+	   return tetri_I;
+	case 2:
+	    return tetri_L;
+	case 3:
+	    return tetri_J;    
+	case 4:
+	    return tetri_O;
+	case 5:
+	    return tetri_S;	    
+	case 6:
+	    return tetri_Z;
+	    break;
+	case 7:
+	    return tetri_T;
+	    
+    }
+}
+
+void quitGame()
+{
+   //are you sure?
+   //glutDestroyWindow ( Win.id );
+   cleanup();
+   exit(0); // quit! 
+}
+
 void calculate_Ghost() 
 {
     //does the piece not fit on the board
@@ -774,13 +1020,46 @@ void calculate_Ghost()
 	node = node->next();
     } 
 		    
-    do{
-	
+    do {
 	ghostY++;
 	
+	//check for collisions
+	bool collision = false;
+	LinkedNode* node = board;
 	
-	if(ghostY + current.height() > BOARD_HEIGHT) {
-	    ghostY = BOARD_HEIGHT - current.height();
+	for(int i = 0; i < ghostY; i++) {	
+	    node = node->next();
+	}   
+	
+	int diff = 0;
+	
+	if(ghostY < 0) {
+	    diff = ghostY;
+	}
+	    
+	
+	for(int i = 0; i < current.height() + diff; i++) {
+	    for(int j = 0; j < current.width(); j++) {
+		if(
+		    ghostY + i >= 0 &&
+		    pieceX + j >= 0 && 
+		    pieceX + j < BOARD_WIDTH
+		) {
+		    if(current.shape()[i][j] == 1 && node->line()[pieceX + j] != ' ') {
+			collision = true;
+		    }
+		    
+		    if(ghostY + i >= BOARD_HEIGHT && current.shape()[i][j] == 1) {
+			collision = true;
+		    }
+		} 	
+	    }
+	    
+	    node = node->next();
+	}
+	
+	if(collision) {
+	    ghostY--;
 	    
 	    
 	    for(int i = 0; i < current.height(); i++) {
@@ -795,158 +1074,59 @@ void calculate_Ghost()
 			    if(temp[ghostY + i][pieceX + j] != current.icon()) temp[ghostY + i][pieceX + j] = 'G';
 			}
 		    } 
-			
-		    
 		}
 	    }
 	    
 	    return;
-	
-	//piece is just free falling
-	} else {
-	    bool collision = false;
-	    LinkedNode* node = board;
-	    
-	    for(int i = 0; i < ghostY; i++) {	
-		node = node->next();
-	    }   
-	    
-	    int diff = 0;
-	    
-	    if(ghostY < 0) {
-		diff = ghostY;
-	    }
-		
-	    
-	    for(int i = 0; i < current.height() + diff; i++) {
-		for(int j = 0; j < current.width(); j++) {
-		    if(
-			ghostY + i >= 0 &&
-			ghostY + i < BOARD_HEIGHT &&
-			pieceX + j >= 0 && 
-			pieceX + j < BOARD_WIDTH
-		    ) {
-			if(current.shape()[i][j] == 1 && node->line()[pieceX + j] != ' ') {
-			    collision = true;
-			}
-		    } 	
-		}
-		
-		node = node->next();
-	    }
-	    
-
-	    if(collision) {
-		ghostY--;
-		
-		
-		for(int i = 0; i < current.height(); i++) {
-		    for(int j = 0; j < current.width(); j++) {
-			if(
-			    ghostY + i >= 0 &&
-			    ghostY + i < BOARD_HEIGHT &&
-			    pieceX + j >= 0 && 
-			    pieceX + j < BOARD_WIDTH
-			) {
-			    if(current.shape()[i][j] == 1) {
-				if(temp[ghostY + i][pieceX + j] != current.icon()) temp[ghostY + i][pieceX + j] = 'G';
-			    }
-			} 
-		    }
-		}
-		
-		return;
-
-	    //did the piece touch the bottom of the board
-	    } else {
-	    
-		for(int i = 0; i < current.height(); i++) {
-		    for(int j = 0; j < current.width(); j++) {
-			if(
-			    ghostY + i >= 0 &&
-			    ghostY + i < BOARD_HEIGHT &&
-			    pieceX + j >= 0 && 
-			    pieceX + j < BOARD_WIDTH 
-			) {
-			    if(current.shape()[i][j] == 1) {
-				//temp[ghostY + i][pieceX + j] = 'G';
-			    }
-			} 
-		    }
-		}
-	    }
 	}
+	
 			    
     } while (ghostY != 0 - current.height());
 				
-    
-    
-   
 }
 
-void resetTempBoard() 
+bool collision()
 {
+    LinkedNode* node = board;
     
-   LinkedNode* node = board;
-   //printf("Enter\n");
-   for(int i = 0; i < BOARD_HEIGHT; i++) {
-	for(int j = 0; j < BOARD_WIDTH; j++) {
-	   
-		temp[i][j] = node->line()[j];
-
+    for(int i = 0; i < pieceY; i++) {	
+	node = node->next();
+    }   
+    
+    int diff = 0;
+    
+    if(pieceY < 0) {
+	diff = pieceY;
+    }
+	
+    
+    for(int i = 0; i < current.height() + diff; i++) {
+	for(int j = 0; j < current.width(); j++) {
+	    if(
+		pieceY + i >= 0 &&
+		pieceX + j >= 0 && 
+		pieceX + j < BOARD_WIDTH
+	    ) {
+		if(current.shape()[i][j] == 1 && node->line()[pieceX + j] != ' ') {
+		    pieceY--;
+		    return true;
+		}
+	    }
+		
+	    if(pieceY + i >= BOARD_HEIGHT && current.shape()[i][j] == 1) {
+		    pieceY--;
+		    return true;
+	    }
 	}
 	
 	node = node->next();
     }   
-    //printf("Exit\n");
-       
+    
+    return false;
+    
 }
 
-void newPiece() 
-{
-    
-    current = following;
-    
-    /* initialize random seed: */
-    srand (time(NULL));
-
-    /* generate secret number between 1 and 10: */
-    int r = rand() % 7 + 1;
-
-    switch(r) {
-	
-	case 1:
-	    following = tetri_I;
-	    break;
-	case 2:
-	    following = tetri_L;
-	    break;
-	case 3:
-	    following = tetri_J;
-	    break;
-	case 4:
-	    following = tetri_O;
-	    break;
-	case 5:
-	    following = tetri_S;
-	    break;
-	case 6:
-	    following = tetri_Z;
-	    break;
-	case 7:
-	    following = tetri_T;
-	    break;  
-    }
-  
-    
-  
-    pieceY = 0 - current.height();
-    pieceX = BOARD_WIDTH / 2;
-        
-    swapped = false;
-}
-
-void writeToBoard() 
+void updateBoard()
 {
          
    LinkedNode* node = board;
@@ -975,10 +1155,11 @@ void writeToBoard()
 	    if(node->line()[k] == 32) {
 		complete = false;
 		break;
-	    }
+	    } 
 	}
 	
 	if(complete) {
+	    
 	    
 	    linesComepleted++;
 	    
@@ -1000,7 +1181,12 @@ void writeToBoard()
 	    prev = node;
 	}
 	
-	node = node->next();
+	if (pieceY + i >= BOARD_HEIGHT - 1) {
+	    break;
+	} else {
+	    node = node->next();
+	}
+	
     }
     
     switch(linesComepleted) {
@@ -1030,322 +1216,165 @@ void writeToBoard()
     
 }
 
-void movePiece() 
+void dropPiece() 
+{
+    LinkedNode* node = board;
+
+    while(1)
+    {
+	pieceY++;
+	if(collision()) break;
+	
+	score += 2;
+	movePiece();    
+    }
+    
+    pieceY++;
+    
+    resetTempBoard();   
+   
+}
+
+void moveDown() 
+{	
+    pieceY++;   
+    score++;
+}
+
+void moveLeft() 
 {
     
-    //does the piece not fit on the board
+    LinkedNode* node = board;
     
-    //did the piece touch another piece
     
-    resetTempBoard();
-    
-    if(pieceY + current.height() > BOARD_HEIGHT) {
-	pieceY = BOARD_HEIGHT - current.height();
-	
-	writeToBoard();
-	
-	for(int i = 0; i < current.height(); i++) {
-	    for(int j = 0; j < current.width(); j++) {
-		if(
-		    pieceY + i >= 0 &&
-		    pieceY + i < BOARD_HEIGHT &&
-		    pieceX + j >= 0 && 
-		    pieceX + j < BOARD_WIDTH
-		) {
-		    if(current.shape()[i][j] == 1) {
-			temp[pieceY + i][pieceX + j] = current.icon();
-			//board[pieceY + i][pieceX + j] = current.icon();
-		    }
-		} 
-		    
-		
-	    }
-	}
-	
-	newPiece();
-    
-    //piece is just free falling
-    } else {
-	bool collision = false;
-	LinkedNode* node = board;
-	
-	for(int i = 0; i < pieceY; i++) {	
-	    node = node->next();
-	}   
-	
-	int diff = 0;
-	
-	if(pieceY < 0) {
-	    diff = pieceY;
-	}
-	    
-	
-	for(int i = 0; i < current.height() + diff; i++) {
-	    for(int j = 0; j < current.width(); j++) {
-		if(
-		    pieceY + i >= 0 &&
-		    pieceY + i < BOARD_HEIGHT &&
-		    pieceX + j >= 0 && 
-		    pieceX + j < BOARD_WIDTH
-		) {
-		    if(current.shape()[i][j] == 1 && node->line()[pieceX + j] != ' ') {
-			collision = true;
-		    }
-		} 	
-	    }
-	    
-	    node = node->next();
-	}
-	
-
-	if(collision) {
-	    pieceY--;
-	    
-	
-	    
-	    writeToBoard();
-	    
-	    for(int i = 0; i < current.height(); i++) {
-		for(int j = 0; j < current.width(); j++) {
-		    if(
-			pieceY + i >= 0 &&
-			pieceY + i < BOARD_HEIGHT &&
-			pieceX + j >= 0 && 
-			pieceX + j < BOARD_WIDTH
-		    ) {
-			if(current.shape()[i][j] == 1) {
-			    temp[pieceY + i][pieceX + j] = current.icon();
-			    //board[pieceY + i][pieceX + j] = current.icon();
-			}
-		    } 
+    for(int i = 0; i < pieceY; i++) {	
+	node = node->next();
+    }   
+	 	    
+    for(int i = 0; i < current.height(); i++) {
+	for(int j = 0; j < current.width(); j++) {
+	    if(pieceX - 1 + j >= 0 ) {
+		if(current.shape()[i][j] == 1 && node->line()[pieceX - 1 + j] != ' ') {
+		    //printf("DENIED\n");
+		    return;
 		}
-	    }
-	    
-	    if(pieceY < 0 ){
-		gameOver = true;
-		
-	    }
-	    
-	    newPiece();
-
-	//did the piece touch the bottom of the board
-	} else {
-	
-	    for(int i = 0; i < current.height(); i++) {
-		for(int j = 0; j < current.width(); j++) {
-		    if(
-			pieceY + i >= 0 &&
-			pieceY + i < BOARD_HEIGHT &&
-			pieceX + j >= 0 && 
-			pieceX + j < BOARD_WIDTH 
-		    ) {
-			if(current.shape()[i][j] == 1) {
-			    temp[pieceY + i][pieceX + j] = current.icon();
-			}
-		    } 
+	    } else {
+		if(current.shape()[i][j] == 1) {
+		    return;
 		}
 	    }
 	}
+	node = node->next();
     }
-    
-    calculate_Ghost();
+	        
+    pieceX--;
 }
 
-void rotate() 
+void moveRight() 
 {
+    LinkedNode* node = board;
     
-    int w = current.width();
-    int h = current.height();
+    for(int i = 0; i < pieceY; i++) {	
+	node = node->next();
+    }   
     
-    
-    int** shape_r = ( int** ) malloc( w *sizeof( int* ));
-    for ( int i = 0; i < w; i++ ) {
-	shape_r[i] = ( int* ) malloc( h * sizeof(int) );	
-    }
-    
-    for(int i = 0; i < h; i++) {
-	for(int j = 0; j < w; j++) {
-	    shape_r[j][i] = current.shape()[i][j];
+    for(int i = 0; i < current.height(); i++) {
+	for(int j = 0; j < current.width(); j++) {
+	    if(pieceX + 1 + j < BOARD_WIDTH ) {
+		if(current.shape()[i][j] == 1 && node->line()[pieceX + 1 + j] != ' ') {
+		    return;
+		}    
+	    } else if(current.shape()[i][j] == 1) {
+		return;
+	    }
 	}
+	node = node->next();
     }
     
-    int aux;
-    for(int i = 0; i < h; i++) {
-	aux = shape_r[0][i];
-	shape_r[0][i] = shape_r[w-1][i];
-	shape_r[w-1][i] = aux;
-    }
-    
-
-    
-    
-    //free(current.shape());
-    
-    current.setShape(shape_r);
-    current.setHeight(w);
-    current.setWidth(h);
-    
+    pieceX++;
 }
-
 
 //===================== Input =====================
 
 void keyboard(unsigned char key, int x, int y) 
-{ // will get which key was pressed and x and y positions if required
-
-	//std::cerr << "\t you pressed the " << key << " key" << std::endl;
-	//std::cerr << "\t positions X: " << x <<" Y: "<< y << std::endl;
-	
+{ // will get which key was pressed and x and y positions if required	
 	
 	switch (key)
 	{
+		case 27: //ESC
+		    quitGame();
+		    break;
+	    
 		case 'q': 
-		    exit(1); // quit!
-		
-		case 'f': 
-		    if(!fullscreen){
-			glutFullScreen();
-			fullscreen = true;
-		    } else if(fullscreen){
-			glutReshapeWindow(WINDOW_X, WINDOW_Y);
-			glutPositionWindow(100,100);
-			fullscreen = false;
-		    }
+		    quitGame();
 		    break;
 		
-		case 'r': break;
+		case 'f': 
+		    toggleFullscreen();
+		    break;
 		
-		case '+': break;
+		case 'z': 
+		    holdPiece();
+		    break;
 		
-		case '-': break;
+		case 'x': 
+		    rotateRight();
+		    break;
 		
+		case 'c': 
+		    rotateLeft();
+		    break;
+		    
+		case 'r': 
+		    restart();
+		    break;
+		    
 		case ' ': 
-		    
-		    LinkedNode* node = board;
-		    
-		    for(int i = 0; i < pieceY; i++) {	
-			node = node->next();
-		    } 
-		    
-		    do{
-			score += 2;
-			pieceY++;
-			movePiece();
-			    
-		    } while (pieceY != 0 - current.height());
-				
-		    resetTempBoard();
+		    dropPiece();
 		    break;
 	}
 
-	glutPostRedisplay(); // force a redraw
+	movePiece();
+	
+	glutPostRedisplay();
+}
+
+void toggleFullscreen() 
+{    
+    if(!fullscreen){
+	glutFullScreen();
+	fullscreen = true;
+    } else if(fullscreen){
+	glutReshapeWindow(WINDOW_X, WINDOW_Y);
+	glutPositionWindow(100,100);
+	fullscreen = false;
+    }       
 }
 
 void special(int key, int, int) 
-{ // any special key pressed like arrow keys
+{ //keys such as arrow keys
 	// handle special keys
-    
-	LinkedNode* node = board;
     
 	switch (key)
 	{
+	  
+	    case GLUT_KEY_RIGHT: 
+		moveRight();
+		break;
 		
-		  case GLUT_KEY_RIGHT: 
-			
-			
-	
-			for(int i = 0; i < pieceY; i++) {	
-			    node = node->next();
-			}   
-			
-			for(int i = 0; i < current.height(); i++) {
-			    for(int j = 0; j < current.width(); j++) {
-				if(current.shape()[i][j] == 1 && node->line()[pieceX + 1 + j] != ' ') {
-				    //printf("DENIED\n");
-				    return;
-				}    
-			    }
-			    node = node->next();
-			}
-			
-			
-			
-			pieceX++;
-			
-			if(pieceX + current.width() >= BOARD_WIDTH) {
-			    pieceX = BOARD_WIDTH - current.width();
-			}
-			
-			
-			break;
-		    case GLUT_KEY_LEFT:
-	
-			for(int i = 0; i < pieceY; i++) {	
-			    node = node->next();
-			}   
-			
-			
-			for(int i = 0; i < current.height(); i++) {
-			    for(int j = 0; j < current.width(); j++) {
-				if(current.shape()[i][j] == 1 && node->line()[pieceX - 1 + j] != ' ') {
-				    //printf("DENIED\n");
-				    return;
-				}    
-			    }
-			    node = node->next();
-			}
-			
-			
-			
-			
-			pieceX--;
-			
-			if(pieceX < 0) {
-			    pieceX = 0;
-			} 
-			glutPostRedisplay(); // force a redraw
-			break;
-		    case GLUT_KEY_DOWN: 
-			pieceY++;
-			
-			if(pieceY >= BOARD_HEIGHT) {
-			    pieceY = BOARD_HEIGHT;
-			}
-			score++;
-			glutPostRedisplay(); // force a redraw
-			break;
-		    case GLUT_KEY_UP: 
-			rotate();
-			glutPostRedisplay(); // force a redraw
-			break;
-			
-		    case GLUT_KEY_HOME: 
-			if(swapped) {
-			    return;
-			} else { 
-			    swapped = true;
-			    
-			    
-			    if (holdInit) {
-				Piece aux;
-				aux = hold;
-				hold = current;
-				current = aux;
-				
-				pieceY = 0 - current.height();
-				pieceX = BOARD_WIDTH / 2;
-        
-			    } else {
-				
-				hold = current;
-				
-				newPiece();
-				
-				holdInit = true;
-			    }
-			}
-			glutPostRedisplay(); // force a redraw
-			break;
+	    case GLUT_KEY_LEFT:
+		moveLeft();
+		break;
+	    case GLUT_KEY_DOWN: 
+		moveDown();
+		break;
+	    case GLUT_KEY_UP: 
+		rotateRight();
+		break;
+		
+	    case GLUT_KEY_HOME: 
+		holdPiece();
+		break;
 		
 		
 	}
@@ -1356,6 +1385,7 @@ void special(int key, int, int)
 
 void mouse_click(int button, int state, int x, int y) 
 {
+    
     
 	if (button==GLUT_LEFT_BUTTON) {
 	    
@@ -1383,7 +1413,6 @@ void mouse_motion(int x, int y)
 	//std::cerr << "\t mouse is at (" << x << ", " << y << ")" << std::endl;
 	//glutPostRedisplay();
 }
-
 
 //=================== Main ===================
 int main (int argc, char* argv[]) 
