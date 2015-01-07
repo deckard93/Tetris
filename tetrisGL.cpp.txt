@@ -22,7 +22,6 @@ typedef chrono::milliseconds milliseconds;
 #define SLEEP_TIME 500000
 
 //=========== Globals ===========
-char board[BOARD_HEIGHT][BOARD_WIDTH];
 char temp[BOARD_HEIGHT][BOARD_WIDTH];
 
 int pieceX;
@@ -42,20 +41,15 @@ private:
     int* l;
     
 public:
-    LinkedNode* next();
+    LinkedNode* next() { return n; };
     int*        line() { return l; };
     
     void setNext(LinkedNode* next) { n = next; };
     void setLine(int * line)       { l = line; }
     
     
-} board2;
+} board;
 
-//LinkedNode* LinkedNode::next() { return n; }
-//int*        line() ( return l; };
-    
-//void setNext(LinkedNode* next) { n = next; };
-//void setLine(int * line)       { l = line; }
 
 class Piece {
     
@@ -87,12 +81,17 @@ public:
 
 //=========== Functions ===========
 void resetTempBoard() {
+    
+   LinkedNode* node = &board;
+    
    for(int i = 0; i < BOARD_HEIGHT; i++) {
 	for(int j = 0; j < BOARD_WIDTH; j++) {
 	   
-		temp[i][j] = board[i][j];
+		temp[i][j] = node->line()[j];
 
 	}
+	
+	node = node->next();
     }   
     
        
@@ -201,58 +200,45 @@ void newPiece() {
         
 }
 
+void writeToBoard() {
+    
+   printf("baaaaah\n");
+    
+   LinkedNode* node = &board;
+    
+   for(int i = 0; i < pieceY; i++) {	
+	node = node->next();
+    }   
+    
+    
+    for(int i = 0; i < current.height(); i++) {
+	for(int j = 0; j < current.width(); j++) {
+	    if(current.shape()[i][j] == 1) {
+		node->line()[pieceX + j] = current.icon();
+		printf("Wrote stuff\n");
+	    }
+		 
+	}
+	node = node->next();
+    }
+    
+    printf("aaaaaahhh\n");
+}
+
+
 void movePiece() {
     
     //does the piece not fit on the board
     
     //did the piece touch another piece
-    bool collision = false;
-    
-    for(int i = 0; i < current.height(); i++) {
-	for(int j = 0; j < current.width(); j++) {
-	    if(
-		pieceY + i >= 0 &&
-		pieceY + i < BOARD_HEIGHT &&
-		pieceX + j >= 0 && 
-		pieceX + j < BOARD_WIDTH
-	    ) {
-		if(current.shape()[i][j] == 1 && board[pieceY + i][pieceX + j] != ' ') {
-		    collision = true;
-		}
-	    } 	
-	}
-    }
     
     
     
-    
-    if(collision) {
-	pieceY--;
-	
-	for(int i = 0; i < current.height(); i++) {
-	    for(int j = 0; j < current.width(); j++) {
-		if(
-		    pieceY + i >= 0 &&
-		    pieceY + i < BOARD_HEIGHT &&
-		    pieceX + j >= 0 && 
-		    pieceX + j < BOARD_WIDTH
-		) {
-		    if(current.shape()[i][j] == 1) {
-			temp[pieceY + i][pieceX + j] = current.icon();
-			board[pieceY + i][pieceX + j] = current.icon();
-		    }
-		} 
-		    
-		
-	    }
-	}
-	
-	newPiece();
-
-    //did the piece touch the bottom of the board
-    } else if(pieceY + current.height() > BOARD_HEIGHT) {
+    if(pieceY + current.height() > BOARD_HEIGHT) {
 	pieceY = BOARD_HEIGHT - current.height();
 	
+	writeToBoard();
+	
 	for(int i = 0; i < current.height(); i++) {
 	    for(int j = 0; j < current.width(); j++) {
 		if(
@@ -263,7 +249,7 @@ void movePiece() {
 		) {
 		    if(current.shape()[i][j] == 1) {
 			temp[pieceY + i][pieceX + j] = current.icon();
-			board[pieceY + i][pieceX + j] = current.icon();
+			//board[pieceY + i][pieceX + j] = current.icon();
 		    }
 		} 
 		    
@@ -275,31 +261,98 @@ void movePiece() {
     
     //piece is just free falling
     } else {
-   
+	bool collision = false;
+	LinkedNode* node = &board;
+	
+	for(int i = 0; i < pieceY; i++) {	
+	    node = node->next();
+	}   
+	
 	for(int i = 0; i < current.height(); i++) {
 	    for(int j = 0; j < current.width(); j++) {
 		if(
 		    pieceY + i >= 0 &&
 		    pieceY + i < BOARD_HEIGHT &&
 		    pieceX + j >= 0 && 
-		    pieceX + j < BOARD_WIDTH 
+		    pieceX + j < BOARD_WIDTH
 		) {
-		    if(current.shape()[i][j] == 1) {
-			temp[pieceY + i][pieceX + j] = current.icon();
+		    if(current.shape()[i][j] == 1 && node->line()[pieceX + j] != ' ') {
+			collision = true;
 		    }
-		} 
+		} 	
+	    }
+	    
+	    node = node->next();
+	}
+	
+
+	if(collision) {
+	    pieceY--;
+	    
+	    writeToBoard();
+	    
+	    for(int i = 0; i < current.height(); i++) {
+		for(int j = 0; j < current.width(); j++) {
+		    if(
+			pieceY + i >= 0 &&
+			pieceY + i < BOARD_HEIGHT &&
+			pieceX + j >= 0 && 
+			pieceX + j < BOARD_WIDTH
+		    ) {
+			if(current.shape()[i][j] == 1) {
+			    temp[pieceY + i][pieceX + j] = current.icon();
+			    //board[pieceY + i][pieceX + j] = current.icon();
+			}
+		    } 
+		}
+	    }
+	    
+	    newPiece();
+
+	//did the piece touch the bottom of the board
+	} else {
+	
+	    for(int i = 0; i < current.height(); i++) {
+		for(int j = 0; j < current.width(); j++) {
+		    if(
+			pieceY + i >= 0 &&
+			pieceY + i < BOARD_HEIGHT &&
+			pieceX + j >= 0 && 
+			pieceX + j < BOARD_WIDTH 
+		    ) {
+			if(current.shape()[i][j] == 1) {
+			    temp[pieceY + i][pieceX + j] = current.icon();
+			}
+		    } 
+		}
 	    }
 	}
     }
 }
 
 void init() {
+    
+    LinkedNode* node = &board;
+    
+    
     for(int i = 0; i < BOARD_HEIGHT; i++) {
+	
+	int* line = (int*) malloc(BOARD_WIDTH * sizeof(int));
+	
 	for(int j = 0; j < BOARD_WIDTH; j++) {
-	    board[i][j] = ' ';
+	    line[j] = ' ';
 	    temp[i][j] = ' ';
 	}
+	
+	node->setLine(line);
+	node->setNext(new LinkedNode);
+	
+	node = node->next();
+	
     }
+    
+    //int* line = (int*) malloc(BOARD_WIDTH * sizeof(int));
+    //node->setLine(line);
   
       
     int height;
@@ -550,19 +603,28 @@ void checkInput() {
       if(kbhit()){ //kbhit is 1 if a key has been pressed
 		//printf("pressed key was: %c\n", ch);
 		
+		LinkedNode* node = &board;
+	  
 		switch (ch) {
 		    
 		    case 'd': 
 			
 			
+	
+			for(int i = 0; i < pieceY; i++) {	
+			    node = node->next();
+			}   
+			
 			for(int i = 0; i < current.height(); i++) {
 			    for(int j = 0; j < current.width(); j++) {
-				if(current.shape()[i][j] == 1 && board[pieceY + i][pieceX + 1 + j] != ' ') {
+				if(current.shape()[i][j] == 1 && node->line()[pieceX + 1 + j] != ' ') {
 				    //printf("DENIED\n");
 				    return;
 				}    
 			    }
+			    node = node->next();
 			}
+			
 			
 			
 			pieceX++;
@@ -573,17 +635,23 @@ void checkInput() {
 			
 			
 			break;
-		    case 'a': 
+		    case 'a':
+	
+			for(int i = 0; i < pieceY; i++) {	
+			    node = node->next();
+			}   
 			
 			
 			for(int i = 0; i < current.height(); i++) {
 			    for(int j = 0; j < current.width(); j++) {
-				if(current.shape()[i][j] == 1 && board[pieceY + i][pieceX - 1 + j] != ' ') {
+				if(current.shape()[i][j] == 1 && node->line()[pieceX - 1 + j] != ' ') {
 				    //printf("DENIED\n");
 				    return;
 				}    
 			    }
+			    node = node->next();
 			}
+			
 			
 			
 			
