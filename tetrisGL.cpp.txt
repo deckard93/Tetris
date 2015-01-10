@@ -24,7 +24,7 @@ class LinkedNode;
 
 unsigned int make_bitmap_text();
 Piece randomPiece();
-bool collision();
+int draw_center_text(const char* text);
 void draw_bitmap_text(const char* text);
 void draw_stroke_text(const char* text);
 void tetris();
@@ -45,6 +45,8 @@ void toggleFPS();
 void draw_filled_square();
 void toggleTextures();
 void initGL();
+void restart();
+bool collision();
 
 
 //=========== Shorthands ===========
@@ -64,9 +66,16 @@ typedef chrono::milliseconds milliseconds;
 #define VECTOR 	200
 #define THREE_D 300
 
-#define MENU 	1000 
-#define PAUSED 	2000
-#define PLAYING 3000
+#define MAINMENU 1000 
+#define HOWTO    2000
+#define SETTINGS 3000
+
+#define PLAYING  4000
+
+#define PAUSED   5000
+#define GAMEOVER 6000
+#define YOUWIN	 7000
+
 
 
 //================ DEBUG ================
@@ -92,8 +101,14 @@ int gameState;
 int score;
 int level;
 
+int startLevel;
+int endLevel;
+
 int pieceX;
 int pieceY;
+
+int cursorX;
+int cursorY;
 
 int graphics = VECTOR;
 
@@ -116,6 +131,7 @@ int blockSize;
 
 int aux_Box_S;
 
+unsigned int howto; // texture handle
 
 
 Clock::time_point start;
@@ -173,11 +189,149 @@ public:
     
 } tetri_O, tetri_L, tetri_J, tetri_T, tetri_I, tetri_S, tetri_Z;
 
+class MenuItem {
+
+private:
+    int x;
+    int y;
+    
+    int h;
+    int w;
+    
+    char* name;
+    
+    void (*action)();
+    
+public:	
+    init(char* name_in) {
+	name = name_in;
+	
+	
+	for (size_t i=0;i<strlen(name_in);i++) {
+	    w += glutStrokeWidth(GLUT_STROKE_ROMAN, name_in[i]);
+	}	
+	
+	h = 60;
+
+    }
+    
+public: //class functions
+    bool collision(int check_x, int check_y ) {
+	if(check_x > x - w/4 && check_x < x + w/4 ) {
+	    if(check_y > y && check_y < y + h) {
+		return true;
+	    }
+	}
+	return false;
+    }
+    
+    void runAction() {	action(); }
+    
+public:	//getters
+    int height() { return h; };
+    int width()  { return w; };
+    
+    int posX() { return x; };
+    int posY() { return y; };
+    
+    char* text() { return name; };
+    
+public:	//setters
+    void setHeight(int h_in) { h = h_in; };
+    void setWidth (int w_in) { w = w_in; };
+    
+    void setX (int x_in) { x = x_in; };
+    void setY (int y_in) { y = y_in; };
+    
+    void setAction( void (*a_in)(void) ) { action = a_in; };
+    
+};
+
+MenuItem mainMenu[4];
+MenuItem paused[5]; 
+MenuItem settings[9];
+
+MenuItem* currentMenu;
+
+
 Piece current;
 Piece hold;
 Piece following;
 
 
+//=============== Menu Functions ===============
+void startGame() 
+{
+    restart();
+    gameState = PLAYING;
+}
+
+void settingsClick() 
+{
+    
+}
+
+void howTo() 
+{
+    gameState = HOWTO;
+}
+
+void quitGame()
+{
+   //are you sure?
+   //glutDestroyWindow ( Win.id );
+   cleanup();
+   exit(0); // quit! 
+}
+
+void drawMenu() 
+{
+    
+    
+     glClear(GL_COLOR_BUFFER_BIT);	//clears to current background colour
+     glColor3f(1.0f, 1.0f, 0.0f); // white
+    
+    int x = WORLD_X / 2;
+    int y = WORLD_Y / 2;
+    
+	    
+     
+    for(int i = 0; i < 4; i++) {
+	
+	glPushMatrix();
+	    bool selected;
+	    if(mainMenu[i].collision(cursorX, cursorY)) selected = true;
+	    else selected = false;
+	    
+	    
+	    glTranslatef(mainMenu[i].posX(), mainMenu[i].posY(), 0.0f);
+	    glScalef(0.5f, 0.5f, 1.0f);
+	    
+	    glPushMatrix();
+	    
+	    if(selected) glColor3f(1.0f, 1.0f, 0.0f);
+	    else glColor3f(0.0f, 0.0f, 0.0f);
+	    
+	    glTranslatef(-mainMenu[i].width()/2, -10, 0.0f);
+	    glScalef(mainMenu[i].width(), mainMenu[i].height() * 2, 1.0f);
+	    draw_filled_square();
+	    glPopMatrix();
+	    
+	    if(selected) glColor3f(0.0f, 0.0f, 0.0f);
+	    else glColor3f(1.0f, 1.0f, 0.0f);
+	    
+	    draw_center_text(mainMenu[i].text());
+	    
+	    
+	    
+	    
+	glPopMatrix();
+    }
+	
+    
+    
+    
+}
 
 //=============== Drawing Functions ===============
 unsigned int load_and_bind_texture(const char* filename)
@@ -220,7 +374,48 @@ unsigned int load_and_bind_texture(const char* filename)
 	return tex_handle;
 }
 
+void drawGameOver() 
+{
+    glPushMatrix();
+	
+	// translate it to where we want it
+	glTranslatef(WORLD_X/2, WORLD_Y/2, 0.0f);
+		    
+	// scale it up 
+	//glScalef(1.0f, 1.0f, 1.0f);
+	glScalef(1.0, 1.0, 1.0);
 
+	// rotate anticlockwise in-plane by 30 degrees
+	glRotatef(0.0f, 0.0f, 0.0f, 1.0f); 
+		    
+	draw_center_text("Game Over!");
+		    
+    glPopMatrix(); // done with st
+    
+    glPushMatrix();
+	
+	// translate it to where we want it
+	glTranslatef(WORLD_X/2, WORLD_Y / 5, 0.0f);
+		    
+	// scale it up 
+	//glScalef(1.0f, 1.0f, 1.0f);
+	glScalef(0.3f, 0.3f, 0.0f);
+
+	// rotate anticlockwise in-plane by 30 degrees
+	glRotatef(0.0f, 0.0f, 0.0f, 1.0f); 
+		    
+	draw_center_text("Press ENTER to return to Main Menu");
+		    
+    glPopMatrix(); // done with st
+    
+    
+    
+}
+
+void drawYouWin()
+{
+    //draw_center_text();
+}
 
 void draw_stroke_text(const char* text) 
 {
@@ -235,7 +430,7 @@ void draw_stroke_text(const char* text)
 	    
 }
 
-void draw_center_text(const char* text) 
+int draw_center_text(const char* text) 
 {
 	size_t len = strlen(text);
 	
@@ -246,17 +441,10 @@ void draw_center_text(const char* text)
 		
 	}	
 	
-	glPushMatrix();
-	    glColor3f(1.0f, 0.0f, 0.0f);
-	    glTranslatef(-total_width/2, 0, 0.0f);
-	    glScalef(total_width, 100, 1.0f);
-	    draw_filled_square();
-	    
-	glPopMatrix();
+
 	
 	
 	glPushMatrix();
-	    glColor3f(0.0f, 1.0f, 0.0f); // set RGB values of colour to draw
 	    glTranslatef(-total_width/2, 0, 0.0f);
 	    
 	    for (size_t i=0;i<len;i++) {
@@ -264,6 +452,8 @@ void draw_center_text(const char* text)
 	    }	
 	glPopMatrix();
 	    
+	
+	return total_width;
 }
 
 void displayFPS() 							
@@ -617,7 +807,8 @@ void draw_Board()
 }
 
 
-void draw3DMain() {
+void draw3DMain() 
+{
     
    //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear color and depth buffers
    glMatrixMode(GL_MODELVIEW);     // To operate on model-view matrix
@@ -888,7 +1079,8 @@ void draw_ASCII_Hold()
     
 }
 
-void draw_ASCII_Board() {
+void draw_ASCII_Board() 
+{
     
     int d_X = WORLD_X / 5 * 2 - blockSize;
     int d_Y = 0 + 22 * blockSize - 1 ;
@@ -979,7 +1171,8 @@ void draw_ASCII_Board() {
 	    
 }
 
-void color_Me(char c) {
+void color_Me(char c) 
+{
     
     switch(c) {
 	case 'T':
@@ -1006,46 +1199,9 @@ void color_Me(char c) {
     }
 }
 
-void drawMenu() {
-    
-    int x = WORLD_X / 2;
-    int y = WORLD_Y / 2;
-    
-    glPushMatrix();
-	glTranslatef(x, y, 0.0f);
-	
-	
-	glPushMatrix();
-	    glScalef(0.5f, 0.5f, 1.0f);
-	    draw_center_text(" New Game ");
-	glPopMatrix();
-	
-	glPushMatrix();
-	    glTranslatef(0, -100, 0.0f);
-	    glScalef(0.5f, 0.5f, 1.0f);
-	    draw_center_text(" How to Play ");
-	glPopMatrix();
-	
-	
-	glPushMatrix();
-	    glTranslatef(0, -200, 0.0f);
-	    glScalef(0.5f, 0.5f, 1.0f);
-	    draw_center_text(" Setting ");
-	glPopMatrix();
-	
-	glPushMatrix();
-	    glTranslatef(0, -300, 0.0f);
-	    glScalef(0.5f, 0.5f, 1.0f);
-	    draw_center_text(" Exit ");
-	glPopMatrix();
-	
-    glPopMatrix();
-    
-    
-    
-}
 
-void drawSettings() {
+void drawSettings() 
+{
     
     int x = WORLD_X / 4;
     int y = 8 * (WORLD_Y / 9);
@@ -1117,7 +1273,32 @@ void drawSettings() {
     
 }
 
-
+void drawHowTo() {
+    
+    
+    glClear(GL_COLOR_BUFFER_BIT);	//clears to current background colour
+    glColor3f(1.0f, 1.0f, 1.0f); // white
+    
+    glEnable(GL_TEXTURE_2D); 
+    glBindTexture(GL_TEXTURE_2D, howto);
+    
+    glBegin(GL_QUADS); 
+	glTexCoord2f (0.0f,0.0f); // lower left corner
+  	glVertex2i(0, 0);
+  	glTexCoord2f (1.0f, 0.0f); // lower right corner
+  	glVertex2i(WORLD_X, 0);
+  	glTexCoord2f (1.0f, 1.0f); // upper right corner
+  	glVertex2i(WORLD_X, WORLD_Y);
+  	glTexCoord2f (0.0f, 1.0f); // upper left corner
+  	glVertex2i(0, WORLD_Y);
+    glEnd();
+    
+    
+   
+    
+    glDisable(GL_TEXTURE_2D); 	
+    
+}
 
 
 //===================== Callbacks =====================
@@ -1131,13 +1312,23 @@ void display()
     
     if (FPS) displayFPS();
     
+    initGL();
     switch(gameState) {
+	
+	case MAINMENU:
+	    initGL();
+	    drawMenu();
+	    break;
+	case HOWTO:
+	    drawHowTo();
+	    break;  
+	case SETTINGS:
+	    drawSettings();
+	    break;
 	
 	case PLAYING:
 	    switch(graphics) {
-		case VECTOR:
-		    initGL();
-		    
+		case VECTOR:    
 		    draw_Score();
 		    draw_Level();
 	    
@@ -1147,8 +1338,7 @@ void display()
 		    draw_Board();
 		    break;
 		case ASCII:
-		    initGL();
-		    
+			
 		    draw_Score();
 		    draw_Level();
 		    
@@ -1162,12 +1352,24 @@ void display()
 		    break;
 	    }
 	    break;
+
+	case YOUWIN:
+	    drawYouWin();
+	    break;
+	case GAMEOVER:
+	    drawGameOver();
+	    break;
+	case PAUSED:
+	    drawMenu();
+	    break;
+	    
 	    
 	default:
-	    //drawMenu();
-	    drawSettings();
+	    drawMenu();
 	    break;
-    }   
+		  
+    }
+      
     
     glutSwapBuffers(); 
 }
@@ -1215,16 +1417,18 @@ void idle()
 
 void reshape(int w, int h)
 {
+	/*
 	// save the new window dimensions when window is resized
 	WINDOW_X = w;
 	WINDOW_Y = h;
 
   	//glViewport(0, 0, w, h);
 
-  	//glMatrixMode(GL_PROJECTION);
-  	//glLoadIdentity();
-  	//gluOrtho2D(0, w, 0, h);
+  	glMatrixMode(GL_PROJECTION);
+  	glLoadIdentity();
+  	gluOrtho2D(0, w, 0, h);
   	glutPostRedisplay();
+	*/
 	
 	/*
 	 // Compute aspect ratio of the new window
@@ -1244,7 +1448,7 @@ void reshape(int w, int h)
 	
 }
 
-//===================== Setup =====================
+//===================== Control =====================
 void initGL() 
 {
     
@@ -1296,9 +1500,69 @@ int** allocateArray(int height, int width)
 
 void gameInit() 
 {
+    
+    howto = load_and_bind_texture("howto.png");
+    
+    
+    mainMenu[0].init(" Start Game ");
+    mainMenu[0].setAction(startGame);
+    
+    mainMenu[1].init(" How to Play ");
+    mainMenu[1].setAction(howTo);
+    
+    mainMenu[2].init(" Settings ");
+    mainMenu[2].setAction(settingsClick);
+    
+    mainMenu[3].init(" Exit ");
+    mainMenu[3].setAction(quitGame);
+    
+    int x = WORLD_X / 2;
+    int y = WORLD_Y / 2;
+    
+    for(int i = 0; i < 4; i++) {
+	mainMenu[i].setX(x);
+	mainMenu[i].setY(y - 60 * i);
+	
+    }
+    
+    /*
+    settings[0].init(" Textures ");
+    
+    settings[1].init(" Fullscreen ");
+    
+    settings[2].init(" FPS Display ");
+    
+    settings[3].init(" Render ");
+    
+    settings[4].init(" Resolution ");
+    
+    settings[5].init(" Lookahead ");
+    
+    settings[6].init(" Start Level ");
+    
+    settings[7].init(" End Level ");
+    
+    settings[8].init(" Ghost Piece ");
+    
+    
+    
+     for(int i = 0; i < 9; i++) {
+	settings[i].setX(x);
+	settings[i].setY(y - 60 * i);
+	
+    }
+    */
+    
+    
+    
+    
+    
+    
+    
+    
     FPS = false;
     
-    gameState = PLAYING;
+    gameState = GAMEOVER;
     
     blockSize = WORLD_X / 5 / 10;
 
@@ -1550,6 +1814,50 @@ void cleanup()
     
     
 }
+
+void toggleMenu() 
+{
+    if(gameState == PAUSED) {
+	gameState = PLAYING;   
+    }else if (gameState == PLAYING) {
+	gameState = PAUSED;
+    }
+	
+}
+
+void toggleTextures() 
+{    
+    if(!texture){
+	glEnable(GL_TEXTURE_2D); 
+	texture = true;
+    } else if(texture){
+	texture = false;
+	glDisable(GL_TEXTURE_2D); 
+    }       
+}
+
+void toggleFPS() 
+{    
+    if(!FPS){
+	FPS = true;
+    } else if(FPS){
+	FPS = false;
+    }       
+}
+
+void toggleFullscreen() 
+{    
+    if(!fullscreen){
+	glutFullScreen();
+	fullscreen = true;
+    } else {
+	glutReshapeWindow(WINDOW_X, WINDOW_Y);
+	glutPositionWindow(100,100);
+	fullscreen = false;
+    }       
+}
+
+
 
 
 //=========== Game Functions ===========
@@ -1823,14 +2131,6 @@ Piece randomPiece()
 	    return tetri_T;
 	    
     }
-}
-
-void quitGame()
-{
-   //are you sure?
-   //glutDestroyWindow ( Win.id );
-   cleanup();
-   exit(0); // quit! 
 }
 
 void calculate_Ghost() 
@@ -2130,17 +2430,7 @@ void moveRight()
     pieceX++;
 }
 
-void pauseGame() {
-    if(gameState == PAUSED) {
-	gameState = PLAYING;   
-    }else if (gameState == PLAYING) {
-	gameState = PAUSED;
-    }
-	
-}
-
 //===================== Input =====================
-
 void keyboard(unsigned char key, int x, int y) 
 { // will get which key was pressed and x and y positions if required	
 	
@@ -2150,7 +2440,7 @@ void keyboard(unsigned char key, int x, int y)
 		    quitGame();
 		    break;
 		case 27:  //ESC
-		    pauseGame();
+		    toggleMenu();
 		    break;
 		    
 		
@@ -2160,8 +2450,7 @@ void keyboard(unsigned char key, int x, int y)
 		    break;
 		    
 		case '\r':
-		    restart();
-		    gameState = PLAYING;
+		    if(gameState != PLAYING) gameState = MAINMENU;
 		    break;
 		
 		    
@@ -2210,39 +2499,6 @@ void keyboard(unsigned char key, int x, int y)
 	glutPostRedisplay();
 }
 
-void toggleFullscreen() 
-{    
-    if(!fullscreen){
-	glutFullScreen();
-	fullscreen = true;
-    } else if(fullscreen){
-	glutReshapeWindow(WINDOW_X, WINDOW_Y);
-	glutPositionWindow(100,100);
-	fullscreen = false;
-    }       
-}
-
-
-void toggleFPS() 
-{    
-    if(!FPS){
-	FPS = true;
-    } else if(FPS){
-	FPS = false;
-    }       
-}
-
-void toggleTextures() 
-{    
-    if(!texture){
-	glEnable(GL_TEXTURE_2D); 
-	texture = true;
-    } else if(texture){
-	texture = false;
-	glDisable(GL_TEXTURE_2D); 
-    }       
-}
-
 void special(int key, int, int) 
 { //keys such as arrow keys
 	// handle special keys
@@ -2286,8 +2542,15 @@ void mouse_click(int button, int state, int x, int y)
 		if (state==GLUT_UP)
 		{
 			std::cerr << "\t button released...click finished" << std::endl;
+			
+			 for(int i = 0; i < 4; i++) {
+	
+			    if(mainMenu[i].collision(cursorX, cursorY)) 
+				mainMenu[i].runAction();
+			 }
 
 		}
+		
 
 	} else if (button==GLUT_RIGHT_BUTTON) {
 		std::cerr << "\t right mouse button pressed!" << std::endl;
@@ -2302,22 +2565,18 @@ void mouse_click(int button, int state, int x, int y)
 
 void mouse_motion(int x, int y) 
 {
-	//std::cerr << "\t mouse is at (" << x << ", " << y << ")" << std::endl;
-	//glutPostRedisplay();
+	y = glutGet(GLUT_WINDOW_HEIGHT) - y + 1;
+    
+	cursorX = x * WORLD_X / glutGet(GLUT_WINDOW_WIDTH);
+	cursorY = y * WORLD_Y / glutGet(GLUT_WINDOW_HEIGHT);
+	
+	//std::cerr << "\t mouse is at (" << cursorX << ", " << cursorY << ")" << std::endl;
+	
+	glutPostRedisplay();
 }
+
 
 //=================== Main ===================
-
-/* process menu option 'op' */
-void menu(int op) {
- 
-  switch(op) {
-  case 'Q':
-  case 'q':
-    exit(0);
-  }
-}
-
 int main (int argc, char* argv[]) 
 {
   
@@ -2332,7 +2591,7 @@ int main (int argc, char* argv[])
     
     //callback functions
     glutDisplayFunc(display);
-    glutReshapeFunc(reshape);
+    //glutReshapeFunc(reshape);
     glutIdleFunc(idle);
     
     glutKeyboardFunc(keyboard); 
@@ -2340,19 +2599,6 @@ int main (int argc, char* argv[])
     
     glutMouseFunc(mouse_click); 
     glutPassiveMotionFunc(mouse_motion); 
-    
-    
-     // create a sub menu 
-    int subMenu = glutCreateMenu(menu);
-    glutAddMenuEntry("Do nothing", 0);
-    glutAddMenuEntry("Really Quit", 'q');
-    
-    // create main "right click" menu
-    glutCreateMenu(menu);
-    glutAddSubMenu("Sub Menu", subMenu);
-    glutAddMenuEntry("Quit", 'q');
-    glutAttachMenu(GLUT_RIGHT_BUTTON);
-	
     
     //initialise program
     initGL();
