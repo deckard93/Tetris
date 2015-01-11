@@ -131,7 +131,7 @@ int fps = 0;
 int FPSdisplay = 1000;
 
 bool fullscreen = false;
-bool texture = false;
+bool texture = true;
 bool ghost = true;
 
 long int elapsed;
@@ -141,6 +141,9 @@ int blockSize;
 int aux_Box_S;
 
 unsigned int howto; // texture handle
+unsigned int border; // texture handle
+
+
 
 
 Clock::time_point start;
@@ -1529,6 +1532,7 @@ void gameInit()
 {
     
     howto = load_and_bind_texture("howto.png");
+    border = load_and_bind_texture("square/gray.png");
     
     
     mainMenu[0].init(" Start Game ");
@@ -2550,6 +2554,12 @@ void moveRight()
 }
 
 
+int eyeX = 1;
+int eyeY = 10;
+int eyeZ = 24;
+
+int rotateZ = 0;
+
 //===================== Input =====================
 void keyboard(unsigned char key, int x, int y) 
 { // will get which key was pressed and x and y positions if required	
@@ -2621,6 +2631,38 @@ void keyboard(unsigned char key, int x, int y)
 		    break;    
 		case 'p': 
 		    setRender3D();
+		    break;
+		    
+		    
+		    
+		    
+		case '8':
+		    eyeY++;
+		    break;
+		case '2':
+		    eyeY--;
+		    break;
+		    
+		case '4':
+		    eyeX--;
+		    break;
+		case '6':
+		    eyeX++;
+		    break;
+		    
+		case '5':
+		    eyeZ++;
+		    break;
+		case '0':
+		    eyeZ--;
+		    break;
+		    
+		    
+		case '7':
+		    rotateZ--;
+		    break;
+		case '9':
+		    rotateZ++;
 		    break;
 		    
 	}
@@ -2733,7 +2775,8 @@ int main (int argc, char* argv[])
   
     //initialise glut
     glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_DOUBLE|GLUT_RGBA); // flags bitwise OR'd together
+    //glutInitDisplayMode(GLUT_DOUBLE|GLUT_RGBA); // flags bitwise OR'd together
+    glutInitDisplayMode(GLUT_DOUBLE|GLUT_RGBA|GLUT_DEPTH); // flags bitwise OR'd together
      
     // display window size is in pixels on screen
     glutInitWindowSize(WINDOW_X, WINDOW_Y); 
@@ -2762,103 +2805,411 @@ int main (int argc, char* argv[])
   
 }
 
-void draw3DMain() 
+
+
+
+void make_cube(char c)
 {
-
     
-   //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear color and depth buffers
-   glMatrixMode(GL_MODELVIEW);     // To operate on model-view matrix
- 
-   // Render a color-cube consisting of 6 quads with different colors
-   glLoadIdentity();                 // Reset the model-view matrix
-   //glTranslatef(1.5f, 0.0f, -7.0f);  // Move right and into the screen
- 
-   glBegin(GL_QUADS);                // Begin drawing the color cube with 6 quads
-      // Top face (y = 1.0f)
-      // Define vertices in counter-clockwise (CCW) order with normal pointing out
-      glColor3f(0.0f, 1.0f, 0.0f);     // Green
-      glVertex3f( 1.0f, 1.0f, -1.0f);
-      glVertex3f(-1.0f, 1.0f, -1.0f);
-      glVertex3f(-1.0f, 1.0f,  1.0f);
-      glVertex3f( 1.0f, 1.0f,  1.0f);
- 
-      // Bottom face (y = -1.0f)
-      glColor3f(1.0f, 0.5f, 0.0f);     // Orange
-      glVertex3f( 1.0f, -1.0f,  1.0f);
-      glVertex3f(-1.0f, -1.0f,  1.0f);
-      glVertex3f(-1.0f, -1.0f, -1.0f);
-      glVertex3f( 1.0f, -1.0f, -1.0f);
- 
-      // Front face  (z = 1.0f)
-      glColor3f(1.0f, 0.0f, 0.0f);     // Red
-      glVertex3f( 1.0f,  1.0f, 1.0f);
-      glVertex3f(-1.0f,  1.0f, 1.0f);
-      glVertex3f(-1.0f, -1.0f, 1.0f);
-      glVertex3f( 1.0f, -1.0f, 1.0f);
- 
-      // Back face (z = -1.0f)
-      glColor3f(1.0f, 1.0f, 0.0f);     // Yellow
-      glVertex3f( 1.0f, -1.0f, -1.0f);
-      glVertex3f(-1.0f, -1.0f, -1.0f);
-      glVertex3f(-1.0f,  1.0f, -1.0f);
-      glVertex3f( 1.0f,  1.0f, -1.0f);
- 
-      // Left face (x = -1.0f)
-      glColor3f(0.0f, 0.0f, 1.0f);     // Blue
-      glVertex3f(-1.0f,  1.0f,  1.0f);
-      glVertex3f(-1.0f,  1.0f, -1.0f);
-      glVertex3f(-1.0f, -1.0f, -1.0f);
-      glVertex3f(-1.0f, -1.0f,  1.0f);
- 
-      // Right face (x = 1.0f)
-      glColor3f(1.0f, 0.0f, 1.0f);     // Magenta
-      glVertex3f(1.0f,  1.0f, -1.0f);
-      glVertex3f(1.0f,  1.0f,  1.0f);
-      glVertex3f(1.0f, -1.0f,  1.0f);
-      glVertex3f(1.0f, -1.0f, -1.0f);
-   glEnd();  // End of drawing color-cube
- 
-   
-  
-   // Render a pyramid consists of 4 triangles
-   glLoadIdentity();                  // Reset the model-view matrix
-   glTranslatef(-1.5f, 0.0f, -6.0f);  // Move left and into the screen
- 
-   glBegin(GL_TRIANGLES);           // Begin drawing the pyramid with 4 triangles
-      // Front
-      glColor3f(1.0f, 0.0f, 0.0f);     // Red
-      glVertex3f( 0.0f, 1.0f, 0.0f);
-      glColor3f(0.0f, 1.0f, 0.0f);     // Green
-      glVertex3f(-1.0f, -1.0f, 1.0f);
-      glColor3f(0.0f, 0.0f, 1.0f);     // Blue
-      glVertex3f(1.0f, -1.0f, 1.0f);
- 
-      // Right
-      glColor3f(1.0f, 0.0f, 0.0f);     // Red
-      glVertex3f(0.0f, 1.0f, 0.0f);
-      glColor3f(0.0f, 0.0f, 1.0f);     // Blue
-      glVertex3f(1.0f, -1.0f, 1.0f);
-      glColor3f(0.0f, 1.0f, 0.0f);     // Green
-      glVertex3f(1.0f, -1.0f, -1.0f);
- 
-      // Back
-      glColor3f(1.0f, 0.0f, 0.0f);     // Red
-      glVertex3f(0.0f, 1.0f, 0.0f);
-      glColor3f(0.0f, 1.0f, 0.0f);     // Green
-      glVertex3f(1.0f, -1.0f, -1.0f);
-      glColor3f(0.0f, 0.0f, 1.0f);     // Blue
-      glVertex3f(-1.0f, -1.0f, -1.0f);
- 
-      // Left
-      glColor3f(1.0f,0.0f,0.0f);       // Red
-      glVertex3f( 0.0f, 1.0f, 0.0f);
-      glColor3f(0.0f,0.0f,1.0f);       // Blue
-      glVertex3f(-1.0f,-1.0f,-1.0f);
-      glColor3f(0.0f,1.0f,0.0f);       // Green
-      glVertex3f(-1.0f,-1.0f, 1.0f);
-   glEnd();   // Done drawing the pyramid
-
+	glEnable(GL_TEXTURE_2D); 
     
+    
+	    switch((char) c) {
+		case 'B':
+		    glBindTexture(GL_TEXTURE_2D, border);
+		    break;
+		case 'T':
+		    glBindTexture(GL_TEXTURE_2D, tetri_T.texture());
+		    break;
+		case 'J':
+		    glBindTexture(GL_TEXTURE_2D, tetri_J.texture());
+		    break;
+		case 'I':
+		    glBindTexture(GL_TEXTURE_2D, tetri_I.texture());
+		    break;
+		case 'Z':
+		    glBindTexture(GL_TEXTURE_2D, tetri_Z.texture());
+		    break;
+		case 'S':
+		    glBindTexture(GL_TEXTURE_2D, tetri_S.texture());
+		    break;
+		case 'O':
+		    glBindTexture(GL_TEXTURE_2D, tetri_O.texture());
+		    break;
+		case 'L':
+		    glBindTexture(GL_TEXTURE_2D, tetri_L.texture());
+		    break;
+		    
+		case 'G':
+		    //glBindTexture(GL_TEXTURE_2D, tetri_L.texture());
+		    glColor3f(1.0, 1.0, 1.0);
+		    glDisable(GL_TEXTURE_2D); 
+		    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		    break;
+		
+	    }
+	    
+    
+	static float vertices[8][3] = 
+		{
+			{-0.5f, -0.5f, -0.5f}, // front
+			{0.5f, -0.5f, -0.5f},
+			{0.5f, 0.5f, -0.5f},
+			{-0.5f, 0.5f, -0.5f},
+			{-0.5f, -0.5f, 0.5f}, // back 
+			{0.5f, -0.5f, 0.5f},
+			{0.5f, 0.5f, 0.5f},
+			{-0.5f, 0.5f, 0.5f}
+		};
+
+	// indices into verices
+	static size_t faces[6][4] =
+		{
+			{0, 1, 2, 3},  // front
+			{5, 4, 7, 6},  // back
+			{4, 0, 3, 7},  // left
+			{1, 5, 6, 2},  // right
+			{4, 5, 1, 0},  // bottom
+			{3, 2, 6, 7}   // top
+		};
+
+	
+	glBegin(GL_QUADS);
+	for (size_t f=0;f<6;f++) { // for each face 
+	    
+		glTexCoord2f (0.0f,0.0f); // lower left corner
+		glVertex3fv(vertices[faces[f][0]]);
+		
+		glTexCoord2f (1.0f, 0.0f); // lower right corner
+		glVertex3fv(vertices[faces[f][1]]);
+		
+		glTexCoord2f (1.0f, 1.0f); // upper right corner
+		glVertex3fv(vertices[faces[f][2]]);
+		
+		glTexCoord2f (0.0f, 1.0f); // upper left corner
+		glVertex3fv(vertices[faces[f][3]]);
+		
+		
+		
+	}
+	glEnd();
+
+	
+	if(c == 'G') glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+
+	
+	glDisable(GL_TEXTURE_2D); 
+	
+
 }
+
+void init3D()
+{
+	// set orthographic viewing
+
+    
+    
+	glEnable(GL_DEPTH_TEST);
+    
+	glMatrixMode(GL_PROJECTION); 
+	glLoadIdentity();
+
+	// specify a projection with 
+	//    this view volume, centred on origin 
+	// takes LEFT, RIGHT, BOTTOM, TOP, NEAR and FAR
+	//glOrtho(-2.0, 2.0, -2.0, 2.0, -20.0, 20.0);
+	
+	
+	// for perspective projection use the GLU helper
+	// take FOV, ASPECT RATIO, NEAR, FAR 
+	gluPerspective(60.0, 1.6f, 1.0, 60.0);
+
+
+	// draw stuff as wireframe
+	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	
+	
+	
+	
+	 
+	
+}
+
+void draw_3D_Next() 
+{
+    glColor3f(1.0f, 1.0f, 1.0f); // set RGB values of colour to draw   
+    
+    
+    int d_X;
+    int d_Y;
+    
+    int blockSize = 1;
+    
+    d_X = -14;
+    d_Y = 19 ;
+  
+    glPushMatrix();
+	glTranslatef(d_X, d_Y, 0.0f);
+	
+	d_Y = -3;
+    
+	//Draw Title
+	glPushMatrix();
+	    glScalef(1.0/60.0, 1.0/60.0, 0.0f);
+	    draw_stroke_text("Next: "); 	
+	glPopMatrix();
+	
+	//Draw top border and bottom border
+	
+	for(int j = 0; j < 5; j++) 
+	{	  
+	    glPushMatrix();
+		glTranslatef(0 + j, d_Y, 0.0f);
+		make_cube('B');
+	    glPopMatrix(); // done with stack
+	    
+	    glPushMatrix();
+		glTranslatef(0 + j, d_Y-6, 0.0f);
+		make_cube('B');
+	    glPopMatrix(); // done with stack
+	    
+	}
+	
+	
+	
+	//Print left and right border
+	
+	for(int j = 0; j < 7; j++) {
+		
+	    glPushMatrix();
+		glTranslatef(-1, d_Y - j, 0.0f);
+			
+		make_cube('B');
+	    glPopMatrix(); // done with stack
+	    
+	    glPushMatrix();
+		glTranslatef(5, d_Y - j, 0.0f);
+		
+		make_cube('B');
+	    glPopMatrix(); // done with stack
+	}
+	
+	    
+	
+	
+	
+	//Draw Piece
+	
+	d_Y = - 8;
+	d_X = blockSize + (5/2 - following.width()/2);
+	
+	for(int i = following.height() - 1; i >= 0; i--) {
+	    for(int j = 0; j < following.width(); j++) {
+		if(following.shape()[i][j] == 1) {
+		    glPushMatrix();
+			glTranslatef(d_X + j * blockSize, d_Y, 0.0f);
+			make_cube(following.icon()) ;
+			    
+		    glPopMatrix(); // done with stack
+		}
+	    }
+	    d_Y += blockSize;
+	}
+	
+	
+    
+    glPopMatrix();
+}
+    
+void draw_3D_Hold() 
+{
+    glColor3f(1.0f, 1.0f, 1.0f); // set RGB values of colour to draw   
+    
+    
+    int d_X;
+    int d_Y;
+    
+    int blockSize = 1;
+    
+    d_X = 9;
+    d_Y = 19 ;
+  
+    glPushMatrix();
+	glTranslatef(d_X, d_Y, 0.0f);
+	
+	d_Y = -3;
+    
+	//Draw Title
+	glPushMatrix();
+	    glScalef(1.0/60.0, 1.0/60.0, 0.0f);
+	    draw_stroke_text("Hold: "); 	
+	glPopMatrix();
+	
+	//Draw top border and bottom border
+	
+	for(int j = 0; j < 5; j++) 
+	{	  
+	    glPushMatrix();
+		glTranslatef(0 + j, d_Y, 0.0f);
+		make_cube('B');
+	    glPopMatrix(); // done with stack
+	    
+	    glPushMatrix();
+		glTranslatef(0 + j, d_Y-6, 0.0f);
+		make_cube('B');
+	    glPopMatrix(); // done with stack
+	    
+	}
+	
+	
+	
+	//Print left and right border
+	
+	for(int j = 0; j < 7; j++) {
+		
+	    glPushMatrix();
+		glTranslatef(-1, d_Y - j, 0.0f);
+			
+		make_cube('B');
+	    glPopMatrix(); // done with stack
+	    
+	    glPushMatrix();
+		glTranslatef(5, d_Y - j, 0.0f);
+		
+		make_cube('B');
+	    glPopMatrix(); // done with stack
+	}
+	
+	    
+	
+	
+	
+	//Draw Piece
+	
+	d_Y = - 8;
+	d_X = blockSize + (5/2 - hold.width()/2);
+	
+	for(int i = hold.height() - 1; i >= 0; i--) {
+	    for(int j = 0; j < hold.width(); j++) {
+		if(hold.shape()[i][j] == 1) {
+		    glPushMatrix();
+			glTranslatef(d_X + j * blockSize, d_Y, 0.0f);
+			make_cube(hold.icon()) ;
+			    
+		    glPopMatrix(); // done with stack
+		}
+	    }
+	    d_Y += blockSize;
+	}
+	
+	
+    
+    glPopMatrix();
+}
+
+    
+    
+    
+void draw3DBoard() {
+       
+    //Draw Left and Right Borders
+    for(int i = 0 ; i < BOARD_HEIGHT - INVISIBLE; i++)
+    {
+
+	glPushMatrix();
+	    glTranslatef(-BOARD_WIDTH/2 - 1, i, 0.0f);
+	    make_cube('B');
+	glPopMatrix();
+	
+	glPushMatrix();
+	    glTranslatef(BOARD_WIDTH/2, i, 0.0f);
+	    make_cube('B');
+	glPopMatrix();	
+
+    }
+
+    //Draw Bottom Border
+    for(int i = -BOARD_WIDTH/2 -1 ; i < BOARD_WIDTH/2 + 1; i++) {
+
+	glPushMatrix();
+	    glTranslatef(i, -1, 0.0f);
+	    //glCallList(g_the_cube);
+	    make_cube('B');
+	glPopMatrix();
+	
+    }
+
+
+    //Draw Board
+    int blockSize = 1.0;
+
+    int d_X = -5;
+    int d_Y = 19;
+
+    for(int i = INVISIBLE; i < BOARD_HEIGHT; i++) {
+	glPushMatrix();
+	
+	glTranslatef(d_X, d_Y - (i - INVISIBLE) * blockSize, 0.0f);
+	
+	for(int j = 0; j < BOARD_WIDTH; j++) {
+	    if(temp[i][j] != ' ') {
+	    
+		glPushMatrix();
+
+		    // translate it to where we want it
+		    glTranslatef(0 + j * blockSize, 0, 0.0f);
+		    
+		    // scale it up 
+		    //glScalef(1.0f, 1.0f, 1.0f);
+		    //glScalef(blockSize/2, blockSize/2, blockSize/2);
+
+		    // rotate anticlockwise in-plane by 30 degrees
+		    //glRotatef(0.0f, 0.0f, 0.0f, 1.0f); 
+		    
+		    //glCallList(g_the_cube);
+		    make_cube(temp[i][j]);
+		    
+		glPopMatrix(); // done with stack
+
+	    }	    
+	}
+	glPopMatrix(); // done with stack
+    }
+}
+
+
+void draw3DMain()
+{
+	init3D();
+
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT ); 
+	
+	// position and orient camera
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	gluLookAt(eyeX, eyeY, eyeZ, // eye position
+			  eyeX, eyeY, 0, // reference point
+			  0, 1, 0  // up vector
+		);
+
+	// draw something in 3D
+	glColor3f(1.0f, 1.0f, 1.0f); 
+	
+	
+	
+	glPushMatrix();
+	    glRotated(rotateZ, 0.0, 1.0, 0.0 );
+	    
+	    draw_3D_Next();
+	    draw_3D_Hold();
+	    
+	
+	    draw3DBoard();
+	    
+	glPopMatrix();	   
+	
+}
+
+
 
 
