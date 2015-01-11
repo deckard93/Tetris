@@ -25,6 +25,7 @@ class LinkedNode;
 unsigned int make_bitmap_text();
 Piece randomPiece();
 int draw_center_text(const char* text);
+void draw_Border(int d_X, int d_Y, int size_X, int size_Y) ;
 void draw_bitmap_text(const char* text);
 void draw_stroke_text(const char* text);
 void tetris();
@@ -47,6 +48,11 @@ void toggleTextures();
 void initGL();
 void restart();
 bool collision();
+void toggleGhost();
+void setRenderASCII();
+void setRenderVector();
+void setRender3D();
+void draw3DMain();
 
 
 //=========== Shorthands ===========
@@ -58,7 +64,9 @@ typedef chrono::milliseconds milliseconds;
 
 //=========== Defines ===========
 #define BOARD_WIDTH 	10
-#define BOARD_HEIGHT 	20
+#define BOARD_HEIGHT 	24
+
+#define INVISIBLE 4
 
 #define SLEEP_TIME 500000 
 
@@ -116,14 +124,15 @@ bool swapped;
 bool holdInit;
 bool gameOver;
 
-bool FPS;
+bool FPS = true;
 
-int frames;
-int fps;
-int FPSdisplay;
+int frames = 0;
+int fps = 0;
+int FPSdisplay = 1000;
 
-bool fullscreen;
+bool fullscreen = false;
 bool texture = false;
+bool ghost = true;
 
 long int elapsed;
 
@@ -250,6 +259,8 @@ public:	//setters
 MenuItem mainMenu[4];
 MenuItem paused[5]; 
 MenuItem settings[9];
+MenuItem radioButtons[7];
+MenuItem render[4];
 
 MenuItem* currentMenu;
 
@@ -268,7 +279,7 @@ void startGame()
 
 void settingsClick() 
 {
-    
+    gameState = SETTINGS;
 }
 
 void howTo() 
@@ -374,8 +385,10 @@ unsigned int load_and_bind_texture(const char* filename)
 	return tex_handle;
 }
 
-void drawGameOver() 
+void drawEnd(char *msg) 
 {
+    glColor3f(1.0f, 1.0f, 0.0f); // set RGB values of colour to draw   
+    
     glPushMatrix();
 	
 	// translate it to where we want it
@@ -388,9 +401,25 @@ void drawGameOver()
 	// rotate anticlockwise in-plane by 30 degrees
 	glRotatef(0.0f, 0.0f, 0.0f, 1.0f); 
 		    
-	draw_center_text("Game Over!");
+	draw_center_text(msg);
 		    
     glPopMatrix(); // done with st
+    
+    glPushMatrix();
+    
+	glTranslatef(WORLD_X/2, WORLD_Y/3, 0.0f);
+	glScalef(0.5, 0.5, 1.0);
+	glRotatef(0.0f, 0.0f, 0.0f, 1.0f); 
+		    
+	string Result = "Score: " ;          // string which will contain the result
+	ostringstream convert;  // stream used for the conversion
+	convert << score;      	// insert the textual representation of 'Number' in the characters in the stream
+	Result.append(convert.str()); // set 'Result' to the contents of the stream
+	
+	draw_center_text(Result.c_str()); 
+		    
+    glPopMatrix(); // done with st
+    
     
     glPushMatrix();
 	
@@ -410,11 +439,6 @@ void drawGameOver()
     
     
     
-}
-
-void drawYouWin()
-{
-    //draw_center_text();
 }
 
 void draw_stroke_text(const char* text) 
@@ -538,6 +562,7 @@ void draw_square(char c)
 	    //glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT); 
 	    glColor3f(1.0f, 1.0f, 1.0f); // black
 	    
+	    glEnable(GL_TEXTURE_2D); 
 	    
 	    switch((char) c) {
 		case 'T':
@@ -563,6 +588,7 @@ void draw_square(char c)
 		    break;
 		    
 		case 'G':
+		    glDisable(GL_TEXTURE_2D);
 		    draw_Ghost_Block();
 		    return;
 	    }
@@ -600,7 +626,7 @@ void draw_square(char c)
 	    glEnd();
 	
 	
-  	
+  	if(texture) glDisable(GL_TEXTURE_2D);
 	
 	
 }
@@ -775,10 +801,10 @@ void draw_Board()
     
     draw_Border(d_X - blockSize/2 - 1, d_Y + blockSize/2 + 1, 10 * blockSize + 2, (- 20 * blockSize) - 3);
     
-    for(int i = 0; i < BOARD_HEIGHT ; i++) {
+    for(int i = INVISIBLE; i < BOARD_HEIGHT; i++) {
 	glPushMatrix();
 	
-	glTranslatef(d_X, d_Y - i * blockSize, 0.0f);
+	glTranslatef(d_X, d_Y - (i - INVISIBLE) * blockSize, 0.0f);
 	
 	
 	for(int j = 0; j < BOARD_WIDTH; j++) {
@@ -807,199 +833,114 @@ void draw_Board()
 }
 
 
-void draw3DMain() 
-{
-    
-   //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear color and depth buffers
-   glMatrixMode(GL_MODELVIEW);     // To operate on model-view matrix
- 
-   // Render a color-cube consisting of 6 quads with different colors
-   glLoadIdentity();                 // Reset the model-view matrix
-   //glTranslatef(1.5f, 0.0f, -7.0f);  // Move right and into the screen
- 
-   glBegin(GL_QUADS);                // Begin drawing the color cube with 6 quads
-      // Top face (y = 1.0f)
-      // Define vertices in counter-clockwise (CCW) order with normal pointing out
-      glColor3f(0.0f, 1.0f, 0.0f);     // Green
-      glVertex3f( 1.0f, 1.0f, -1.0f);
-      glVertex3f(-1.0f, 1.0f, -1.0f);
-      glVertex3f(-1.0f, 1.0f,  1.0f);
-      glVertex3f( 1.0f, 1.0f,  1.0f);
- 
-      // Bottom face (y = -1.0f)
-      glColor3f(1.0f, 0.5f, 0.0f);     // Orange
-      glVertex3f( 1.0f, -1.0f,  1.0f);
-      glVertex3f(-1.0f, -1.0f,  1.0f);
-      glVertex3f(-1.0f, -1.0f, -1.0f);
-      glVertex3f( 1.0f, -1.0f, -1.0f);
- 
-      // Front face  (z = 1.0f)
-      glColor3f(1.0f, 0.0f, 0.0f);     // Red
-      glVertex3f( 1.0f,  1.0f, 1.0f);
-      glVertex3f(-1.0f,  1.0f, 1.0f);
-      glVertex3f(-1.0f, -1.0f, 1.0f);
-      glVertex3f( 1.0f, -1.0f, 1.0f);
- 
-      // Back face (z = -1.0f)
-      glColor3f(1.0f, 1.0f, 0.0f);     // Yellow
-      glVertex3f( 1.0f, -1.0f, -1.0f);
-      glVertex3f(-1.0f, -1.0f, -1.0f);
-      glVertex3f(-1.0f,  1.0f, -1.0f);
-      glVertex3f( 1.0f,  1.0f, -1.0f);
- 
-      // Left face (x = -1.0f)
-      glColor3f(0.0f, 0.0f, 1.0f);     // Blue
-      glVertex3f(-1.0f,  1.0f,  1.0f);
-      glVertex3f(-1.0f,  1.0f, -1.0f);
-      glVertex3f(-1.0f, -1.0f, -1.0f);
-      glVertex3f(-1.0f, -1.0f,  1.0f);
- 
-      // Right face (x = 1.0f)
-      glColor3f(1.0f, 0.0f, 1.0f);     // Magenta
-      glVertex3f(1.0f,  1.0f, -1.0f);
-      glVertex3f(1.0f,  1.0f,  1.0f);
-      glVertex3f(1.0f, -1.0f,  1.0f);
-      glVertex3f(1.0f, -1.0f, -1.0f);
-   glEnd();  // End of drawing color-cube
- 
-   
-  
-   // Render a pyramid consists of 4 triangles
-   glLoadIdentity();                  // Reset the model-view matrix
-   glTranslatef(-1.5f, 0.0f, -6.0f);  // Move left and into the screen
- 
-   glBegin(GL_TRIANGLES);           // Begin drawing the pyramid with 4 triangles
-      // Front
-      glColor3f(1.0f, 0.0f, 0.0f);     // Red
-      glVertex3f( 0.0f, 1.0f, 0.0f);
-      glColor3f(0.0f, 1.0f, 0.0f);     // Green
-      glVertex3f(-1.0f, -1.0f, 1.0f);
-      glColor3f(0.0f, 0.0f, 1.0f);     // Blue
-      glVertex3f(1.0f, -1.0f, 1.0f);
- 
-      // Right
-      glColor3f(1.0f, 0.0f, 0.0f);     // Red
-      glVertex3f(0.0f, 1.0f, 0.0f);
-      glColor3f(0.0f, 0.0f, 1.0f);     // Blue
-      glVertex3f(1.0f, -1.0f, 1.0f);
-      glColor3f(0.0f, 1.0f, 0.0f);     // Green
-      glVertex3f(1.0f, -1.0f, -1.0f);
- 
-      // Back
-      glColor3f(1.0f, 0.0f, 0.0f);     // Red
-      glVertex3f(0.0f, 1.0f, 0.0f);
-      glColor3f(0.0f, 1.0f, 0.0f);     // Green
-      glVertex3f(1.0f, -1.0f, -1.0f);
-      glColor3f(0.0f, 0.0f, 1.0f);     // Blue
-      glVertex3f(-1.0f, -1.0f, -1.0f);
- 
-      // Left
-      glColor3f(1.0f,0.0f,0.0f);       // Red
-      glVertex3f( 0.0f, 1.0f, 0.0f);
-      glColor3f(0.0f,0.0f,1.0f);       // Blue
-      glVertex3f(-1.0f,-1.0f,-1.0f);
-      glColor3f(0.0f,1.0f,0.0f);       // Green
-      glVertex3f(-1.0f,-1.0f, 1.0f);
-   glEnd();   // Done drawing the pyramid
 
-    
-}
 
 void draw_ASCII_Next() 
 {
-    glColor3f(1.0f, 1.0f, 1.0f); // set RGB values of colour to draw
+    glColor3f(1.0f, 1.0f, 1.0f); // set RGB values of colour to draw   
     
-    int d_X = WORLD_X / 5;
-    int d_Y = 0 + 20 * blockSize - 1 ;
+    int d_X;
+    int d_Y;
     
-     glPushMatrix();
-	glTranslatef(d_X - blockSize/2 - aux_Box_S/2, d_Y + 50, 0.0f);
-	glScalef(0.3f, 0.3f, 1.0f);
+    d_X = WORLD_X / 5 * 1 - blockSize/2 - aux_Box_S/2;
+    d_Y = 50 + 20 * blockSize ;
+  
+    glPushMatrix();
+	glTranslatef(d_X, d_Y, 0.0f);
 	
-	draw_stroke_text("Next: "); 
-	
-    glPopMatrix();
-        
     
-    d_X = WORLD_X / 5 + (-1) * blockSize;
-    d_Y = 0 + 21 * blockSize - 1 - (5 - following.height()) * blockSize;
-    
-    
-    for(int j = 0; j < following.width(); j++) {
-	  
+	//Draw Title
 	glPushMatrix();
-
-	    glTranslatef(d_X + blockSize * j, d_Y, 0.0f);
-	    glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
-	    draw_stroke_text("=") ;
-    
-	glPopMatrix(); // done with stack
-    }
-    
-     d_Y -= blockSize;
-     d_X = WORLD_X / 5 + (-2) * blockSize;
-    
-    for(int i = 0; i < following.height(); i++) {
-	
-	//char buffer[4];
-	//buffer[0] = '[';
-	//buffer[1] = ']';
-	//buffer[2] = '\0';
-	
-	//draw_stroke_text(buffer) ;
-	
-	glPushMatrix();
-	
-	    glTranslatef(d_X, d_Y - (i + 1) * blockSize, 0.0f);	
-	    
-	    glPushMatrix();
-		glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
-	    
-		draw_stroke_text("<!") ;
-	    glPopMatrix(); // done with stack
-	
-	for(int j = 0; j < following.width(); j++) {
-	    if(following.shape()[i][j] == 1) {
-		glPushMatrix();
-		    glTranslatef(blockSize + j * blockSize, 0, 0.0f);
-		    glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
-
-			color_Me(following.icon());
-
-			draw_stroke_text("[]") ;
-
-		glPopMatrix(); // done with stack
-	    }
-	}
-	
-	    glPushMatrix();
-		glTranslatef(blockSize + following.width() * blockSize  , 0, 0);	
-		glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
-	    
-		draw_stroke_text("!>") ;
-	    glPopMatrix(); // done with stack
-	    
-	
+	    glScalef(blockSize/130.0, blockSize/130.0, 1.0f);
+	    draw_stroke_text("Next: "); 	
 	glPopMatrix();
-    }
-    
-    
-    d_Y -= blockSize * (following.width() + 1);
-    d_X = WORLD_X / 5 + (-1) * blockSize;
-    
-    for(int j = 0; j < following.width(); j++) {
-	    
+	
+	//Draw top border
+	d_X = blockSize;
+	d_Y = - 2*blockSize;
+	
+	for(int j = 0; j < 5; j++) 
+	{	  
 	    glPushMatrix();
-		    glTranslatef(d_X, d_Y, 0.0f);
-		    glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
-
-		    draw_stroke_text("=") ;
-
-			    
+		glTranslatef(d_X + j * blockSize, d_Y, 0.0f);
+		glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
+		draw_stroke_text("=") ;
 	    glPopMatrix(); // done with stack
-	    
-	    d_X += blockSize;
 	}
+	
+	
+	//Print bottom border
+	d_Y = -7 * blockSize;
+	d_X = blockSize;
+	
+	for(int j = 0; j < 5; j++) {
+		
+	    glPushMatrix();
+		glTranslatef(d_X + j * blockSize, d_Y, 0.0f);
+		glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
+			
+		draw_stroke_text("=");	
+	    glPopMatrix(); // done with stack
+	}
+	
+	
+	//Print left border
+	d_Y = -2 * blockSize;
+	d_X = 0;
+	
+	for(int j = 0; j < 6; j++) {
+		
+	    glPushMatrix();
+		glTranslatef(d_X, d_Y - j * blockSize, 0.0f);
+		glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
+			
+		draw_stroke_text("<!");	
+	    glPopMatrix(); // done with stack
+	}
+	
+	    
+	    
+	//Print right border
+	d_Y = -2 * blockSize;
+	d_X = 6 * blockSize;
+	
+	for(int j = 0; j < 6; j++) {
+		
+	    glPushMatrix();
+		glTranslatef(d_X, d_Y - j * blockSize, 0.0f);
+		glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
+			
+		draw_stroke_text("!>");	
+	    glPopMatrix(); // done with stack
+	}
+	
+	
+	
+	//Draw Piece
+	
+	d_Y = - 6 * blockSize;
+	d_X = blockSize + (5/2 - following.width()/2) * blockSize;
+	
+	for(int i = following.height() - 1; i >= 0; i--) {
+	    for(int j = 0; j < following.width(); j++) {
+		if(following.shape()[i][j] == 1) {
+		    glPushMatrix();
+		    
+			glTranslatef(d_X + j * blockSize, d_Y, 0.0f);
+			glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
+		    
+			color_Me(following.icon());
+			draw_stroke_text("[]") ;
+			    
+		    glPopMatrix(); // done with stack
+		}
+	    }
+	    d_Y += blockSize;
+	}
+	
+	
+    
+    glPopMatrix();
     
      
     
@@ -1009,72 +950,108 @@ void draw_ASCII_Hold()
 {
     glColor3f(1.0f, 1.0f, 1.0f); // set RGB values of colour to draw   
     
-    int d_X = WORLD_X / 5 * 4;
-    int d_Y = 0 + 20 * blockSize - 1 ;
+    int d_X;
+    int d_Y;
     
+    d_X = WORLD_X / 5 * 4 - blockSize/2 - aux_Box_S/2;
+    d_Y = 50 + 20 * blockSize ;
+  
     glPushMatrix();
-	glTranslatef(d_X - blockSize/2 - aux_Box_S/2, d_Y + 50, 0.0f);
-	glScalef(0.3f, 0.3f, 1.0f);
+	glTranslatef(d_X, d_Y, 0.0f);
 	
-	draw_stroke_text("Hold: "); 
-	
-    glPopMatrix();
     
-    d_X = WORLD_X / 5 * 4 + (-1) * blockSize;
-    d_Y = 0 + 21 * blockSize - 1 - (5 - hold.height()) * blockSize;
-    
-    
-    for(int j = 0; j < hold.width(); j++) {
-	  
+	//Draw Title
 	glPushMatrix();
-
-	    glTranslatef(d_X + blockSize * j, d_Y, 0.0f);
-	    glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
-	    draw_stroke_text("=") ;
-    
-	glPopMatrix(); // done with stack
-    }
-    
-     d_Y -= blockSize;
-    d_X = WORLD_X / 5 * 4 + (-1) * blockSize;
-     
-   
-    for(int i = 0; i < hold.height(); i++) {
-	for(int j = 0; j < hold.width(); j++) {
-	    if(hold.shape()[i][j] == 1) {
-		glPushMatrix();
-		
-		    glTranslatef(d_X, d_Y, 0.0f);
-		    glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
-		
-		    color_Me(hold.icon());
-		    draw_stroke_text("[]") ;
-			
-		glPopMatrix(); // done with stack
-	    }
-	    d_X += blockSize;
-	}
-	d_Y -= blockSize;
-	d_X = WORLD_X / 5 * 4 + (-1) * blockSize;
-    }
-    
-    
-    d_Y -= blockSize;
-    d_X = WORLD_X / 5 * 4 + (-1) * blockSize;
-    
-    for(int j = 0; j < hold.width(); j++) {
-	    
+	    glScalef(blockSize/130.0, blockSize/130.0, 1.0f);
+	    draw_stroke_text("Hold: "); 	
+	glPopMatrix();
+	
+	//Draw top border
+	d_X = blockSize;
+	d_Y = - 2*blockSize;
+	
+	for(int j = 0; j < 5; j++) 
+	{	  
 	    glPushMatrix();
-		    glTranslatef(d_X, d_Y, 0.0f);
-		    glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
-
-		    draw_stroke_text("=") ;
-
-			    
+		glTranslatef(d_X + j * blockSize, d_Y, 0.0f);
+		glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
+		draw_stroke_text("=") ;
 	    glPopMatrix(); // done with stack
-	    
-	    d_X += blockSize;
 	}
+	
+	
+	//Print bottom border
+	d_Y = -7 * blockSize;
+	d_X = blockSize;
+	
+	for(int j = 0; j < 5; j++) {
+		
+	    glPushMatrix();
+		glTranslatef(d_X + j * blockSize, d_Y, 0.0f);
+		glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
+			
+		draw_stroke_text("=");	
+	    glPopMatrix(); // done with stack
+	}
+	
+	
+	//Print left border
+	d_Y = -2 * blockSize;
+	d_X = 0;
+	
+	for(int j = 0; j < 6; j++) {
+		
+	    glPushMatrix();
+		glTranslatef(d_X, d_Y - j * blockSize, 0.0f);
+		glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
+			
+		draw_stroke_text("<!");	
+	    glPopMatrix(); // done with stack
+	}
+	
+	    
+	    
+	//Print right border
+	d_Y = -2 * blockSize;
+	d_X = 6 * blockSize;
+	
+	for(int j = 0; j < 6; j++) {
+		
+	    glPushMatrix();
+		glTranslatef(d_X, d_Y - j * blockSize, 0.0f);
+		glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
+			
+		draw_stroke_text("!>");	
+	    glPopMatrix(); // done with stack
+	}
+	
+	
+	
+	//Draw Piece
+	
+	d_Y = - 6 * blockSize;
+	d_X = blockSize + (5/2 - hold.width()/2) * blockSize;
+	
+	for(int i = hold.height() - 1; i >= 0; i--) {
+	    for(int j = 0; j < hold.width(); j++) {
+		if(hold.shape()[i][j] == 1) {
+		    glPushMatrix();
+		    
+			glTranslatef(d_X + j * blockSize, d_Y, 0.0f);
+			glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
+		    
+			color_Me(hold.icon());
+			draw_stroke_text("[]") ;
+			    
+		    glPopMatrix(); // done with stack
+		}
+	    }
+	    d_Y += blockSize;
+	}
+	
+	
+    
+    glPopMatrix();
     
     
 }
@@ -1087,10 +1064,10 @@ void draw_ASCII_Board()
    
     char buffer[4];
    
-    for(int i = 0; i < BOARD_HEIGHT + 1 ; i++) {
+    for(int i = INVISIBLE; i < BOARD_HEIGHT + 1 ; i++) {
 	
 	glPushMatrix();
-	    glTranslatef(d_X, d_Y - i * blockSize, 0.0f);
+	    glTranslatef(d_X, d_Y - (i - INVISIBLE)* blockSize, 0.0f);
 	    
 	    glPushMatrix();    
 		glScalef(blockSize/190.0, blockSize/190.0, blockSize/190.0);
@@ -1202,9 +1179,12 @@ void color_Me(char c)
 
 void drawSettings() 
 {
+     glClear(GL_COLOR_BUFFER_BIT);	//clears to current background colour
+    glColor3f(1.0f, 1.0f, 0.0f); // yellow
+    
     
     int x = WORLD_X / 4;
-    int y = 8 * (WORLD_Y / 9);
+    int y = WORLD_Y - WORLD_Y / 10;
     
     glPushMatrix();
 	glTranslatef(x, y, 0.0f);
@@ -1216,58 +1196,109 @@ void drawSettings()
 	    draw_center_text(" Graphics ");
 	glPopMatrix();
 	
-	    glPushMatrix();
-		glTranslatef(x, 0, 0.0f);
-		glScalef(0.5f, 0.5f, 1.0f);
-		draw_center_text(" Fullscreen ");
-	    glPopMatrix();
-	    
-	    glPushMatrix();
-		glTranslatef(x, -100, 0.0f);
-		glScalef(0.5f, 0.5f, 1.0f);
-		draw_center_text(" Resolution ");
-	    glPopMatrix();
-	    
-	    glPushMatrix();
-		glTranslatef(x, -200, 0.0f);
-		glScalef(0.5f, 0.5f, 1.0f);
-		draw_center_text(" Textures ");
-	    glPopMatrix();
-	    
-	    glPushMatrix();
-		glTranslatef(x, -300, 0.0f);
-		glScalef(0.5f, 0.5f, 1.0f);
-		draw_center_text(" FPS Display ");
-	    glPopMatrix();
-	    
-	    glPushMatrix();
-		glTranslatef(x, -400, 0.0f);
-		glScalef(0.5f, 0.5f, 1.0f);
-		draw_center_text(" Render ");
-	    glPopMatrix();
-	
-	
-	
 	glPushMatrix();
-	    glTranslatef(0, -700, 0.0f);
+	    glTranslatef(0, -680, 0.0f);
 	    glScalef(0.5f, 0.5f, 1.0f);
 	    draw_center_text(" Game ");
 	glPopMatrix();	
 	
-	    glPushMatrix();
-		glTranslatef(x, -700, 0.0f);
-		glScalef(0.5f, 0.5f, 1.0f);
-		draw_center_text("Start Level");
-	    glPopMatrix();
-	    
-	    glPushMatrix();
-		glTranslatef(x, -800, 0.0f);
-		glScalef(0.5f, 0.5f, 1.0f);
-		draw_center_text(" Lookahead No ");
-	    glPopMatrix();
 	
 	
     glPopMatrix();
+    
+    
+    x = WORLD_X / 2;
+    y = WORLD_Y / 2;
+    
+	    
+     
+    for(int i = 0; i < 9; i++) {
+	
+	glPushMatrix();
+	    bool selected;
+	    if(settings[i].collision(cursorX, cursorY)) selected = true;
+	    else selected = false;
+	    
+	    
+	    glTranslatef(settings[i].posX(), settings[i].posY(), 0.0f);
+	    glScalef(0.5f, 0.5f, 1.0f);
+	    
+	    glPushMatrix();
+	    
+	    if(selected) glColor3f(1.0f, 1.0f, 0.0f);
+	    else glColor3f(0.0f, 0.0f, 0.0f);
+	    
+	    glTranslatef(0, -10, 0.0f);
+	    glScalef(settings[i].width(), settings[i].height() * 2, 1.0f);
+	    draw_filled_square();
+	    glPopMatrix();
+	    
+	    if(selected) glColor3f(0.0f, 0.0f, 0.0f);
+	    else glColor3f(1.0f, 1.0f, 0.0f);
+	    
+	    draw_stroke_text(settings[i].text());
+	        
+	glPopMatrix();
+    }
+    
+    
+    for(int i = 0; i < 7; i++) {
+	
+	glPushMatrix();
+	    bool selected;
+	    if(radioButtons[i].collision(cursorX, cursorY)) selected = true;
+	    else selected = false;
+	    
+	    
+	    glTranslatef(radioButtons[i].posX(), radioButtons[i].posY(), 0.0f);
+	    glScalef(0.5f, 0.5f, 1.0f);
+	    
+	    glPushMatrix();
+	    
+	    if(selected) glColor3f(1.0f, 1.0f, 0.0f);
+	    else glColor3f(0.0f, 0.0f, 0.0f);
+	    
+	    glTranslatef(0, -10, 0.0f);
+	    glScalef(radioButtons[i].width(), radioButtons[i].height() * 2, 1.0f);
+	    draw_filled_square();
+	    glPopMatrix();
+	    
+	    if(selected) glColor3f(0.0f, 0.0f, 0.0f);
+	    else glColor3f(1.0f, 1.0f, 0.0f);
+	    
+	    draw_Border(0, 0, radioButtons[i].width()/2, radioButtons[i].height() );
+	        
+	glPopMatrix();
+    }
+    
+    for(int i = 0; i < 3; i++) {
+	
+	glPushMatrix();
+	    bool selected;
+	    if(render[i].collision(cursorX, cursorY)) selected = true;
+	    else selected = false;
+	    
+	    
+	    glTranslatef(render[i].posX(), render[i].posY(), 0.0f);
+	    glScalef(0.5f, 0.5f, 1.0f);
+	    
+	    glPushMatrix();
+	    
+	    if(selected) glColor3f(1.0f, 1.0f, 0.0f);
+	    else glColor3f(0.0f, 0.0f, 0.0f);
+	    
+	    glTranslatef(0, -10, 0.0f);
+	    glScalef(render[i].width(), render[i].height() * 2, 1.0f);
+	    draw_filled_square();
+	    glPopMatrix();
+	    
+	    if(selected) glColor3f(0.0f, 0.0f, 0.0f);
+	    else glColor3f(1.0f, 1.0f, 0.0f);
+	    
+	    draw_stroke_text(render[i].text());
+	        
+	glPopMatrix();
+    }
     
     
     
@@ -1310,7 +1341,7 @@ void display()
     
     glClear(GL_COLOR_BUFFER_BIT);	//clears to current background colour
     
-    if (FPS) displayFPS();
+    
     
     initGL();
     switch(gameState) {
@@ -1354,10 +1385,10 @@ void display()
 	    break;
 
 	case YOUWIN:
-	    drawYouWin();
+	    drawEnd("You Win!");
 	    break;
 	case GAMEOVER:
-	    drawGameOver();
+	    drawEnd("Game Over!");
 	    break;
 	case PAUSED:
 	    drawMenu();
@@ -1369,6 +1400,8 @@ void display()
 	    break;
 		  
     }
+    
+    if (FPS) displayFPS();
       
     
     glutSwapBuffers(); 
@@ -1452,13 +1485,7 @@ void reshape(int w, int h)
 void initGL() 
 {
     
-    fullscreen = false;
-    
-    FPS = true;
-    
-    frames = 0;
-    fps = 0;
-    FPSdisplay = 1000;
+
     
     // select viewing transformation matrix to modify
     glMatrixMode(GL_PROJECTION); 
@@ -1525,51 +1552,133 @@ void gameInit()
 	
     }
     
-    /*
-    settings[0].init(" Textures ");
     
-    settings[1].init(" Fullscreen ");
     
-    settings[2].init(" FPS Display ");
+    settings[0].init(" Render ");
+    settings[1].init(" Resolution ");
     
-    settings[3].init(" Render ");
-    
-    settings[4].init(" Resolution ");
-    
-    settings[5].init(" Lookahead ");
-    
-    settings[6].init(" Start Level ");
-    
-    settings[7].init(" End Level ");
-    
-    settings[8].init(" Ghost Piece ");
+    settings[2].init(" Textures ");
+    settings[3].init(" Fullscreen ");
+    settings[4].init(" FPS Display ");
+   
+    settings[5].init(" Ghost Piece ");
+    settings[6].init(" Lookahead ");
+    settings[7].init(" Start Level ");
+    settings[8].init(" End Level ");
     
     
     
-     for(int i = 0; i < 9; i++) {
+    
+    x = WORLD_X / 3;
+    y = WORLD_Y - WORLD_Y/10;
+    
+    settings[0].setX(x);
+    settings[0].setY(y);
+    
+     for(int i = 1; i < 5; i++) {
+	settings[i].setX(x);
+	settings[i].setY(y - 60 * (i + 3));
+	
+    }
+    
+    y -= 200 + 3 * 60;
+    
+    for(int i = 5; i < 9; i++) {
 	settings[i].setX(x);
 	settings[i].setY(y - 60 * i);
 	
     }
-    */
+    
+    
+    radioButtons[0].setWidth(60);
+    radioButtons[0].setHeight(60);
+    radioButtons[0].setAction(setRenderASCII);
+    
+    radioButtons[1].setWidth(60);
+    radioButtons[1].setHeight(60);
+    radioButtons[1].setAction(setRenderVector);
+    
+    radioButtons[2].setWidth(60);
+    radioButtons[2].setHeight(60);
+    radioButtons[2].setAction(setRender3D);
+    
+    radioButtons[3].setWidth(60);
+    radioButtons[3].setHeight(60);
+    radioButtons[3].setAction(toggleTextures);
+    
+    radioButtons[4].setWidth(60);
+    radioButtons[4].setHeight(60);
+    radioButtons[4].setAction(toggleFullscreen);
+    
+    radioButtons[5].setWidth(60);
+    radioButtons[5].setHeight(60);
+    radioButtons[5].setAction(toggleFPS);
+    
+    radioButtons[6].setWidth(60);
+    radioButtons[6].setHeight(60);
+    radioButtons[6].setAction(toggleGhost);
+    
+    
+    
+    
+    
+    x = (WORLD_X * 2) / 3;
+    y = WORLD_Y - (WORLD_Y/10);
+    
+    for(int i = 0; i < 3; i++) {
+	radioButtons[i].setX(x);
+	radioButtons[i].setY(y - 60 * i);
+    }
+    
+    y -= 120;
+    
+    for(int i = 3; i < 6; i++) {
+	radioButtons[i].setX(x);
+	radioButtons[i].setY(y - 60 * i);
+    }
+    
+    
+    radioButtons[6].setX(x);
+    radioButtons[6].setY(y - 60 * 6 - 200);
+    
+    
+    
+    render[0].init(" ASCII ");
+    render[1].init(" Vector ");
+    render[2].init(" 3D ");
+    
+    
+    
+    x = WORLD_X / 2;
+    y = WORLD_Y - WORLD_Y / 10;
+    
+    
+    for(int i = 0; i < 3; i++) {
+	render[i].setX(x);
+	render[i].setY(y - 60 * i);
+    }
     
     
     
     
     
     
+    
+    
+    startLevel = 0;
+    endLevel = 20;
     
     
     FPS = false;
     
-    gameState = GAMEOVER;
+    gameState = MAINMENU;
     
     blockSize = WORLD_X / 5 / 10;
 
     aux_Box_S = 5 * blockSize;
     
     
-    level = 0;
+    level = startLevel;
     
     speed[0] = 53 / 60.0 * 1000;
     speed[1] = 49 / 60.0 * 1000;
@@ -1724,21 +1833,16 @@ void gameInit()
     
     srand (time(NULL));
     
-    current = randomPiece();
-    
     following = randomPiece();
     
-    pieceY = 0 - current.height();
-    pieceX = BOARD_WIDTH / 2;
-    
-    swapped = false;
+    newPiece();
     
 }
 
 void restart() 
 {
     
-    level = 0;
+    level = startLevel;
     score = 0;
     
     linesCleared = 0;
@@ -1766,7 +1870,7 @@ void restart()
     
     following = randomPiece();
     
-    pieceY = 0 - current.height();
+    pieceY = 0;
     pieceX = BOARD_WIDTH / 2;
     
     swapped = false;
@@ -1828,11 +1932,11 @@ void toggleMenu()
 void toggleTextures() 
 {    
     if(!texture){
-	glEnable(GL_TEXTURE_2D); 
+	
 	texture = true;
     } else if(texture){
 	texture = false;
-	glDisable(GL_TEXTURE_2D); 
+	
     }       
 }
 
@@ -1857,8 +1961,27 @@ void toggleFullscreen()
     }       
 }
 
+void toggleGhost() {
+ 
+    if(ghost) {
+	ghost = false;
+    } else {
+	ghost = true;
+    }
+    
+}
 
+void setRenderASCII() {
+     graphics = ASCII;
+}
 
+void setRenderVector() {
+     graphics = VECTOR;
+}
+
+void setRender3D() {
+     graphics = THREE_D;
+}
 
 //=========== Game Functions ===========
 void updateTemp()
@@ -1888,11 +2011,8 @@ void movePiece()
     if(collision()) {	//place the piece and generate a new one
 	pieceY--;
 	
-	if(pieceY < 0 ){
-	    gameOver = true;
-	    printf("Game Over\n");
-	    restart();
-	    
+	if(pieceY < 4 ){
+	    gameState = GAMEOVER;
 	    return;
 	}
 	
@@ -1906,7 +2026,7 @@ void movePiece()
 	updateTemp();
     }
     
-    calculate_Ghost();
+    if(ghost) calculate_Ghost();
 }
 
 void resetTempBoard()
@@ -1933,7 +2053,7 @@ void newPiece()
     
     following = randomPiece();
   
-    pieceY = 0 - current.height();
+    pieceY = 0;
     pieceX = BOARD_WIDTH / 2 - current.width();
         
     swapped = false;
@@ -2225,8 +2345,7 @@ bool collision()
     if(pieceY < 0) {
 	diff = pieceY;
     }
-	
-    
+	    
     for(int i = 0; i < current.height() + diff; i++) {
 	for(int j = 0; j < current.width(); j++) {
 	    
@@ -2237,6 +2356,7 @@ bool collision()
 		}
 		
 		if (pieceX + j < 0 || pieceX + j >= BOARD_WIDTH) {
+		    printf("Anohter FLAG\n");
 		    return true;
 		}
 
@@ -2345,9 +2465,8 @@ void updateBoard()
 	linesCleared = 0;
 	level++;
 	
-	if(level > 20) {
-	    printf("You Win!\n");
-	    restart();		
+	if(level >= endLevel) {
+	    gameState = YOUWIN;
 	}
     }	    
 }
@@ -2430,6 +2549,7 @@ void moveRight()
     pieceX++;
 }
 
+
 //===================== Input =====================
 void keyboard(unsigned char key, int x, int y) 
 { // will get which key was pressed and x and y positions if required	
@@ -2450,7 +2570,15 @@ void keyboard(unsigned char key, int x, int y)
 		    break;
 		    
 		case '\r':
-		    if(gameState != PLAYING) gameState = MAINMENU;
+		    if(gameState == MAINMENU) {
+			startGame();
+			return;
+		    }
+		    
+		    if(gameState != PLAYING) {
+			gameState = MAINMENU;
+		    }
+
 		    break;
 		
 		    
@@ -2462,6 +2590,9 @@ void keyboard(unsigned char key, int x, int y)
 		    break;
 		case 't':
 		    toggleTextures();
+		    break;     
+		case 'g':
+		    toggleGhost();
 		    break; 
 		   
 		    
@@ -2483,13 +2614,13 @@ void keyboard(unsigned char key, int x, int y)
 		    
 		    
 		case 'i': 
-		    graphics = ASCII;
+		    setRenderASCII();
 		    break;
 		case 'o': 
-		    graphics = VECTOR;
+		    setRenderVector();
 		    break;    
 		case 'p': 
-		    graphics = THREE_D;
+		    setRender3D();
 		    break;
 		    
 	}
@@ -2543,10 +2674,30 @@ void mouse_click(int button, int state, int x, int y)
 		{
 			std::cerr << "\t button released...click finished" << std::endl;
 			
-			 for(int i = 0; i < 4; i++) {
+			 
 	
-			    if(mainMenu[i].collision(cursorX, cursorY)) 
-				mainMenu[i].runAction();
+			 switch(gameState) {
+			    case MAINMENU:			    
+				
+				for(int i = 0; i < 4; i++) {
+				    if(mainMenu[i].collision(cursorX, cursorY)) 
+					mainMenu[i].runAction();
+				}
+				break;
+			    case SETTINGS:
+				for(int i = 0; i < 4; i++) {
+				    if(radioButtons[i].collision(cursorX, cursorY)) 
+					radioButtons[i].runAction();
+				}
+				break;
+				
+    			    case PAUSED:			    
+				for(int i = 0; i < 4; i++) {
+				    if(mainMenu[i].collision(cursorX, cursorY)) 
+					mainMenu[i].runAction();
+				}
+				break;
+
 			 }
 
 		}
@@ -2610,4 +2761,104 @@ int main (int argc, char* argv[])
     return 0;
   
 }
+
+void draw3DMain() 
+{
+
+    
+   //glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Clear color and depth buffers
+   glMatrixMode(GL_MODELVIEW);     // To operate on model-view matrix
+ 
+   // Render a color-cube consisting of 6 quads with different colors
+   glLoadIdentity();                 // Reset the model-view matrix
+   //glTranslatef(1.5f, 0.0f, -7.0f);  // Move right and into the screen
+ 
+   glBegin(GL_QUADS);                // Begin drawing the color cube with 6 quads
+      // Top face (y = 1.0f)
+      // Define vertices in counter-clockwise (CCW) order with normal pointing out
+      glColor3f(0.0f, 1.0f, 0.0f);     // Green
+      glVertex3f( 1.0f, 1.0f, -1.0f);
+      glVertex3f(-1.0f, 1.0f, -1.0f);
+      glVertex3f(-1.0f, 1.0f,  1.0f);
+      glVertex3f( 1.0f, 1.0f,  1.0f);
+ 
+      // Bottom face (y = -1.0f)
+      glColor3f(1.0f, 0.5f, 0.0f);     // Orange
+      glVertex3f( 1.0f, -1.0f,  1.0f);
+      glVertex3f(-1.0f, -1.0f,  1.0f);
+      glVertex3f(-1.0f, -1.0f, -1.0f);
+      glVertex3f( 1.0f, -1.0f, -1.0f);
+ 
+      // Front face  (z = 1.0f)
+      glColor3f(1.0f, 0.0f, 0.0f);     // Red
+      glVertex3f( 1.0f,  1.0f, 1.0f);
+      glVertex3f(-1.0f,  1.0f, 1.0f);
+      glVertex3f(-1.0f, -1.0f, 1.0f);
+      glVertex3f( 1.0f, -1.0f, 1.0f);
+ 
+      // Back face (z = -1.0f)
+      glColor3f(1.0f, 1.0f, 0.0f);     // Yellow
+      glVertex3f( 1.0f, -1.0f, -1.0f);
+      glVertex3f(-1.0f, -1.0f, -1.0f);
+      glVertex3f(-1.0f,  1.0f, -1.0f);
+      glVertex3f( 1.0f,  1.0f, -1.0f);
+ 
+      // Left face (x = -1.0f)
+      glColor3f(0.0f, 0.0f, 1.0f);     // Blue
+      glVertex3f(-1.0f,  1.0f,  1.0f);
+      glVertex3f(-1.0f,  1.0f, -1.0f);
+      glVertex3f(-1.0f, -1.0f, -1.0f);
+      glVertex3f(-1.0f, -1.0f,  1.0f);
+ 
+      // Right face (x = 1.0f)
+      glColor3f(1.0f, 0.0f, 1.0f);     // Magenta
+      glVertex3f(1.0f,  1.0f, -1.0f);
+      glVertex3f(1.0f,  1.0f,  1.0f);
+      glVertex3f(1.0f, -1.0f,  1.0f);
+      glVertex3f(1.0f, -1.0f, -1.0f);
+   glEnd();  // End of drawing color-cube
+ 
+   
+  
+   // Render a pyramid consists of 4 triangles
+   glLoadIdentity();                  // Reset the model-view matrix
+   glTranslatef(-1.5f, 0.0f, -6.0f);  // Move left and into the screen
+ 
+   glBegin(GL_TRIANGLES);           // Begin drawing the pyramid with 4 triangles
+      // Front
+      glColor3f(1.0f, 0.0f, 0.0f);     // Red
+      glVertex3f( 0.0f, 1.0f, 0.0f);
+      glColor3f(0.0f, 1.0f, 0.0f);     // Green
+      glVertex3f(-1.0f, -1.0f, 1.0f);
+      glColor3f(0.0f, 0.0f, 1.0f);     // Blue
+      glVertex3f(1.0f, -1.0f, 1.0f);
+ 
+      // Right
+      glColor3f(1.0f, 0.0f, 0.0f);     // Red
+      glVertex3f(0.0f, 1.0f, 0.0f);
+      glColor3f(0.0f, 0.0f, 1.0f);     // Blue
+      glVertex3f(1.0f, -1.0f, 1.0f);
+      glColor3f(0.0f, 1.0f, 0.0f);     // Green
+      glVertex3f(1.0f, -1.0f, -1.0f);
+ 
+      // Back
+      glColor3f(1.0f, 0.0f, 0.0f);     // Red
+      glVertex3f(0.0f, 1.0f, 0.0f);
+      glColor3f(0.0f, 1.0f, 0.0f);     // Green
+      glVertex3f(1.0f, -1.0f, -1.0f);
+      glColor3f(0.0f, 0.0f, 1.0f);     // Blue
+      glVertex3f(-1.0f, -1.0f, -1.0f);
+ 
+      // Left
+      glColor3f(1.0f,0.0f,0.0f);       // Red
+      glVertex3f( 0.0f, 1.0f, 0.0f);
+      glColor3f(0.0f,0.0f,1.0f);       // Blue
+      glVertex3f(-1.0f,-1.0f,-1.0f);
+      glColor3f(0.0f,1.0f,0.0f);       // Green
+      glVertex3f(-1.0f,-1.0f, 1.0f);
+   glEnd();   // Done drawing the pyramid
+
+    
+}
+
 
